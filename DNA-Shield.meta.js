@@ -9,7 +9,7 @@
 // @supportURL   https://linkedin.com/in/lastroze
 // @updateURL    https://github.com/LastRoze/DNA-Shield/raw/master/ZUZU-Menu.meta.js
 // @downloadURL  https://github.com/LastRoze/DNA-Shield/raw/master/ZUZU-Menu.user.js
-// @icon         https://github.com/LastRoze/DNA-Shield/blob/master/DNA.png
+// @icon         https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg
 // @require      https://code.jquery.com/jquery-latest.js
 // @run-at       document-start
 // @match        *://*/*
