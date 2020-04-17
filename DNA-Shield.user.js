@@ -35,7 +35,7 @@
 document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/turbolinks/5.2.0/turbolinks.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
 
 //Unpoly
-document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://unpkg.com/unpoly@0.61.1/dist/unpoly.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+//document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://unpkg.com/unpoly@0.61.1/dist/unpoly.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
 
 //Bypass Time
 (function() {
