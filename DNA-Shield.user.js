@@ -8,7 +8,7 @@
 // @homepageURL  https://github.com/LastRoze/
 // @supportURL   https://linkedin.com/in/lastroze
 // @updateURL    https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.meta.js
-// @downloadURL  https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shieldu.user.js
+// @downloadURL  https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.user.js
 // @icon         https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
 // @require      https://code.jquery.com/jquery-latest.js
 // @run-at       document-start
