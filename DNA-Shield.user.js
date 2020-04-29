@@ -55,6 +55,9 @@ document.addEventListener("DOMContentLoaded",function(){var t=document.createEle
 //Tez
 document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/tez.js/10.0.1/Tez.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
 
+//GSAP
+document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/gsap/3.2.6/gsap.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+
 //Bypass Time
 (function() {
     'use strict';
