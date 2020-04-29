@@ -30,7 +30,6 @@
 // @noframes
 // ==/UserScript==
 
-
 //Turbo Link
 //document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/turbolinks/5.2.0/turbolinks.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
 
@@ -57,6 +56,12 @@ document.addEventListener("DOMContentLoaded",function(){var t=document.createEle
 
 //GSAP
 document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/gsap/3.2.6/gsap.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+
+//QWERY
+document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/qwery/4.0.0/qwery.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+
+//Lazy
+document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.2.0/lazysizes.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
 
 //Bypass Time
 (function() {
@@ -1197,6 +1202,100 @@ setTimeout(function(){ jQuery('.dashicons.dashicons-editor-expand').click() }, 5
             case 'davinsurance.com': return bagilagi();
             case 'dawnstation.com': return dawnstation();
             case 'decrypt2.safelinkconverter.com': return safelinkconverter();
+            case 'drive.jepitkertas.com': return kurosafe();
+            case 'drivefiles.bid': return kurosafe();
+            case 'dwindly.io': return dwindly();
+            case 'flylink.io': return ujv();
+            case 'fmlawkers.club': return kurosafe();
+            case 'forexbrokers.download': return lindungin();
+            case 'gameinfo.pw': return bagilagi();
+            case 'getinfos.net': return bagilagi();
+            case 'giga74.com': return safelinkview();
+            case 'gocoo.co': return gocoo();
+            case 'gosavelink.com': return kurosafe();
+            case 'greget.space': return siherp();
+            case 'healthtod.com': return lindungin();
+            case 'hexafile.net': return hexafile();
+            case 'hunstulovers.net': return hunstulovers();
+            case 'idsly.bid': return safelinku();
+            case 'indexmovie.biz': return indexmovie();
+            case 'indexmovie.club': return wikitrade();
+            case 'insurance-info.us': return lindungin();
+            case 'insurance-waifu.cf': return waifu();
+            case 'intercelestial.com': return bagilagi();
+            case 'irisvera.com': return lindungin();
+            case 'jheberg.net': return jheberg();
+            case 'jili.in': return jiliin();
+            case 'karung.in': return karungin();
+            case 'kurosafety.menantisenja.com': return kurosafe();
+            case 'landscapenature.pw': return bagilagi();
+            case 'lanjutkeun.blogspot.com': return wikitrade();
+            case 'licklink.net': return ujv();
+            case 'lifesurance.info': return bagilagi();
+            case 'lindung.in': return lindungin();
+            case 'link4.me': return shortad();
+            case 'link4win.net': return ujv();
+            case 'linkach.com': return bagilagi();
+            case 'linkrex.net': return ujv();
+            case 'linksad.net': return ujv();
+            case 'linkshrink.net': return linkshrink();
+            case 'lonelymoon.net': return bagilagi();
+            case 'losstor.com': return kurosafe();
+            case 'lyon.kim': return ujv();
+            case 'masmellow.com': return wikitrade();
+            case 'menantisenja.com': return lindungin();
+            case 'mirrorace.com': return mirrorace();
+            case 'mirrored.to': return mirrored();
+            case 'mylink.zone': return mylink();
+            case 'naturalhealthy.xyz': return lindungin();
+            case 'onepiece-ex.com.br': return onepiece();
+            case 'onlinefreecourse.net': return onlinefreecourse();
+            case 'pafpaf.info': return kurosafe();
+            case 'pengaman-link.indonesia-komunitas.com': return wikitrade();
+            case 'plantaheim.com': return lindungin();
+            case 'plantaheim.web.id': return lindungin();
+            case 'psl.pw': return ujv();
+            case 'punchsubs.net': return punchsubs();
+            case 'safelinkreviewx.com': return safelinkview();
+            case 'safelinku.net': return safelinku();
+            case 'sehatlega.com': return lindungin();
+            case 'sehatsegar.net': return bagilagi();
+            case 'sfl.ink': return safelinku();
+            case 'short.awsubs.co': return awsubs();
+            case 'shortad.cf': return shortad();
+            case 'shrtfly.net': return ujv();
+            case 'shtlink.co': return shtme();
+            case 'shtme.co': return shtme();
+            case 'siherp.com': return siherp();
+            case 'siotong.com': return siherp();
+            case 'skinnycat.net': return lindungin();
+            case 'skips.link': return safelinku();
+            case 'skyinsurance.ml': return bagilagi();
+            case 'soralink.sinetronku.tv': return lindungin();
+            case 'spacetica.com': return spacetica();
+            case 'speedcar.club': return bagilagi();
+            case 'suarankri.me': return safelinku();
+            case 'sweetlantern.com': return bagilagi();
+            case 'swzz.xyz': return swzz();
+            case 'teknosafe.teknologilink.com': return teknosafe();
+            case 'telolet.in': return telolet();
+            case 'telondasmu.com': return siherp();
+            case 'tetew.info': return siherp();
+            case 'tetewlink.me': return vehicletechno();
+            case 'tr.link': return shortad();
+            case 'travelwithtricks.me': return lindungin();
+            case 'u.safelinkview.com': return safelinkview();
+            case 'ujv.al': return ujval();
+            case 'ujv.me': return ujv();
+            case 'updatetribun.org': return safelinku();
+            case 'urlku.gq': return urlku();
+            case 'vehicle-techno.cf': return vehicletechno();
+            case 'verydelicius.com': return verydelicius();
+            case 'wikitrade.me': return wikitrade();
+        }
+    }
+})();
+();
             case 'drive.jepitkertas.com': return kurosafe();
             case 'drivefiles.bid': return kurosafe();
             case 'dwindly.io': return dwindly();
