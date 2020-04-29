@@ -3,7 +3,7 @@
 // @namespace    DNA Shield
 // @description  Dominion With Domination
 // @copyright    ©2020 - Yoga Budiman
-// @version      1.1
+// @version      1.2
 // @author       Last Roze
 // @homepageURL  https://github.com/LastRoze/
 // @supportURL   https://linkedin.com/in/lastroze
@@ -36,6 +36,24 @@
 
 //Unpoly
 document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://unpkg.com/unpoly@0.61.1/dist/unpoly.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+
+//Accel
+document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/page-accelerator/0.1.1/page-accelerator.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+
+//Fast Click
+document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/fastclick/1.0.6/fastclick.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+
+//Fast DOM
+document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/fastdom/1.0.9/fastdom.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+
+//Fast Active
+document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/FastActive/1.0.1/FastActive.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+
+//Hyper HTML
+document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/hyperHtml/2.32.2/min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+
+//Tez
+document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/tez.js/10.0.1/Tez.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
 
 //Bypass Time
 (function() {
