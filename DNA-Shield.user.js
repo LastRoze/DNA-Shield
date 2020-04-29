@@ -12,7 +12,11 @@
 // @icon         https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
 // @require      https://code.jquery.com/jquery-latest.js
 // @run-at       document-start
+// @include      *
+// @include      http://*
+// @include      https://*
 // @match        *://*/*
+// @connect      *
 // @grant        GM_addStyle
 // @grant        GM_deleteValue
 // @grant        GM_getResourceURL
@@ -31,7 +35,7 @@
 // ==/UserScript==
 
 //Turbo Link
-document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/turbolinks/5.2.0/turbolinks.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+//document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/turbolinks/5.2.0/turbolinks.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
 
 //Unpoly
 document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://unpkg.com/unpoly@0.61.1/dist/unpoly.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
