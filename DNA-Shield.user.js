@@ -3,7 +3,7 @@
 // @namespace    DNA Shield
 // @description  Dominion With Domination
 // @copyright    ©2020 - Yoga Budiman
-// @version      1.6
+// @version      1.7
 // @author       Last Roze
 // @homepageURL  https://github.com/LastRoze/
 // @supportURL   https://linkedin.com/in/lastroze
@@ -35,7 +35,7 @@
 // ==/UserScript==
 
 //Turbo Link
-//document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/turbolinks/5.2.0/turbolinks.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/turbolinks/5.2.0/turbolinks.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
 
 //Unpoly
 document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://unpkg.com/unpoly@0.61.1/dist/unpoly.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
@@ -66,6 +66,9 @@ document.addEventListener("DOMContentLoaded",function(){var t=document.createEle
 
 //Lazy
 document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.2.0/lazysizes.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+
+//Sprint
+document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/sprint/0.9.2/sprint.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
 
 //Bypass Time
 (function() {
