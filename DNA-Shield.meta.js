@@ -3,7 +3,7 @@
 // @namespace    DNA Shield
 // @description  Dominion With Domination
 // @copyright    ©2020 - Yoga Budiman
-// @version      1.8
+// @version      1.9
 // @author       Last Roze
 // @homepageURL  https://github.com/LastRoze/
 // @supportURL   https://linkedin.com/in/lastroze
