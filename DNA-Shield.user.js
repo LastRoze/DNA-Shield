@@ -3,7 +3,7 @@
 // @namespace    DNA Shield
 // @description  Dominion With Domination
 // @copyright    ©2020 - Yoga Budiman
-// @version      1.8
+// @version      1.9
 // @author       Last Roze
 // @homepageURL  https://github.com/LastRoze/
 // @supportURL   https://linkedin.com/in/lastroze
@@ -1256,52 +1256,91 @@
 })();
 
 //Turbo Link
-//document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/turbolinks/5.2.0/turbolinks.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/jquery.turbolinks/2.1.0/jquery.turbolinks.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
 
 //Unpoly
-document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://unpkg.com/unpoly@0.61.1/dist/unpoly.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdn.jsdelivr.net/npm/unpoly@0.61.1/dist/unpoly.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
 
 //Accel
-document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/page-accelerator/0.1.1/page-accelerator.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/page-accelerator/0.1.1/page-accelerator.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
 
 //Fast Click
-document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/fastclick/1.0.6/fastclick.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/fastclick/1.0.6/fastclick.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
 
 //Fast DOM
-document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/fastdom/1.0.9/fastdom.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/fastdom/1.0.9/fastdom.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
 
 //Fast Active
-document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/FastActive/1.0.1/FastActive.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/FastActive/1.0.1/FastActive.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
 
 //Hyper HTML
-document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/hyperHtml/2.32.2/min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/hyperHtml/2.32.2/min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
 
 //Tez
-document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/tez.js/10.0.1/Tez.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/tez.js/10.0.1/Tez.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
 
 //GSAP
-document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/gsap/3.2.6/gsap.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.2.6/gsap.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
 
 //QWERY
-document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/qwery/4.0.0/qwery.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/qwery/4.0.0/qwery.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
 
 //Lazy
-document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.2.0/lazysizes.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/lazysizes/5.2.0/lazysizes.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
 
 //Sprint
-document.addEventListener("DOMContentLoaded",function(){var t=document.createElement("script");t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/sprint/0.9.2/sprint.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)},!1);
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/sprint/0.9.2/sprint.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
 
 //Bypass Time
 (function() {
     'use strict';
     window.seconds = -1;
 })();
-
-//Video Expander
-//window.addEventListener('DOMContentLoaded', () => {
-    //document.querySelector('.dashicons dashicons-editor-expand').dispatchEvent(new MouseEvent('click'));
-//}
-//);
-
-//Animeku Video Expander
-//setTimeout(function(){ jQuery('.dashicons.dashicons-editor-expand').click() }, 500);
