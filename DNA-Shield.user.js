@@ -3,7 +3,7 @@
 // @namespace    DNA Shield
 // @description  Dominion With Domination
 // @copyright    ©2020 - Yoga Budiman
-// @version      1.9
+// @version      2.0
 // @author       Last Roze
 // @homepageURL  https://github.com/LastRoze/
 // @supportURL   https://linkedin.com/in/lastroze
@@ -1262,13 +1262,6 @@ document.addEventListener("DOMContentLoaded", function() {
     document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
 }, !1);
 
-//Unpoly
-//document.addEventListener("DOMContentLoaded", function() {
-//    var e = document.createElement("script");
-//    e.setAttribute("src", "https://cdn.jsdelivr.net/npm/unpoly@0.61.1/dist/unpoly.min.js");
-//    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
-//}, !1);
-
 //Accel
 document.addEventListener("DOMContentLoaded", function() {
     var e = document.createElement("script");
@@ -1314,14 +1307,14 @@ document.addEventListener("DOMContentLoaded", function() {
 //GSAP
 document.addEventListener("DOMContentLoaded", function() {
     var e = document.createElement("script");
-    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.2.6/gsap.min.js");
+    e.setAttribute("src", "https://cdn.jsdelivr.net/npm/fastq@1.7.0/queue.min.js");
     document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
 }, !1);
 
-//QWERY
+//Memory
 document.addEventListener("DOMContentLoaded", function() {
     var e = document.createElement("script");
-    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/qwery/4.0.0/qwery.min.js");
+    e.setAttribute("src", "https://cdn.jsdelivr.net/npm/fastq@1.7.0/queue.min.js");
     document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
 }, !1);
 
@@ -1336,6 +1329,47 @@ document.addEventListener("DOMContentLoaded", function() {
 document.addEventListener("DOMContentLoaded", function() {
     var e = document.createElement("script");
     e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/sprint/0.9.2/sprint.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
+
+//QParser
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdn.jsdelivr.net/npm/qmark@0.0.1/qmark.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
+
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdn.jsdelivr.net/npm/querystringparser@0.1.1/js/querystringparser.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
+
+//WebF
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdn.jsdelivr.net/npm/faster@3.5.1/index.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
+
+//BabelF
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdn.jsdelivr.net/npm/faster.js@1.1.1/lib/index.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
+
+//HTML5F
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdn.jsdelivr.net/npm/html-entities@1.3.1/lib/index.min.js");
+    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+}, !1);
+
+//NASYNC
+document.addEventListener("DOMContentLoaded", function() {
+    var e = document.createElement("script");
+    e.setAttribute("src", "https://cdn.jsdelivr.net/npm/neo-async@2.6.1/async.min.js");
     document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
 }, !1);
 
