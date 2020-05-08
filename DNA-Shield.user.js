@@ -1263,11 +1263,11 @@ document.addEventListener("DOMContentLoaded", function() {
 }, !1);
 
 //Unpoly
-document.addEventListener("DOMContentLoaded", function() {
-    var e = document.createElement("script");
-    e.setAttribute("src", "https://cdn.jsdelivr.net/npm/unpoly@0.61.1/dist/unpoly.min.js");
-    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
-}, !1);
+//document.addEventListener("DOMContentLoaded", function() {
+//    var e = document.createElement("script");
+//    e.setAttribute("src", "https://cdn.jsdelivr.net/npm/unpoly@0.61.1/dist/unpoly.min.js");
+//    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+//}, !1);
 
 //Accel
 document.addEventListener("DOMContentLoaded", function() {
