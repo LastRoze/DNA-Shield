@@ -3,14 +3,14 @@
 // @namespace    DNA Shield
 // @description  Dominion With Domination
 // @copyright    ©2020 - Yoga Budiman
-// @version      2.0
+// @version      2.1
 // @author       Last Roze
 // @homepageURL  https://github.com/LastRoze/
 // @supportURL   https://linkedin.com/in/lastroze
 // @updateURL    https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.meta.js
 // @downloadURL  https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.user.js
 // @icon         https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
-// @require      https://code.jquery.com/jquery-latest.js
+// @require
 // @run-at       document-start
 // @include      *
 // @include      http://*
