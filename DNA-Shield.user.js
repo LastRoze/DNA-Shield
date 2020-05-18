@@ -3,7 +3,7 @@
 // @namespace    DNA Shield
 // @description  Dominion With Domination
 // @copyright    ©2020 - Yoga Budiman
-// @version      2.2
+// @version      2.3
 // @author       Last Roze
 // @homepageURL  https://github.com/LastRoze/
 // @supportURL   https://linkedin.com/in/lastroze
@@ -36,12 +36,8 @@
 
 document.addEventListener('readystatechange', function() {
     var e = document.createElement("script");
-    e.setAttribute("src", "https://cdn.jsdelivr.net/npm/turbolinks@5.3.0-beta.1/dist/turbolinks.min.js");
+    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/jquery.turbolinks/2.1.0/jquery.turbolinks.min.js");
     document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
-}, !1);
-
-document.addEventListener("turbolinks:load", function() {
-    location.reload(false);
 }, !1);
 
 (function() {
