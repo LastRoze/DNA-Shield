@@ -45,7 +45,7 @@ let nolz_inspics = ["111.222.com","333.444.com"];
 let nolz_wlist = ["search.taobao.com","list.tmall.com","s.taobao.com"];
 let nolz_prehref = document.location.href;
 
-let nolz_nolazyload = function()
+let nolz_nolazyload = async function()
 {
     try
     {
@@ -86,7 +86,7 @@ let nolz_nolazyload = function()
     }
 }
 
-let nolz_preload = function(url,tag,img)
+let nolz_preload = async function(url,tag,img)
 {
     let loaded = false;
     for(let i = 0; i<nolz_lazypics.length;i++)
@@ -111,7 +111,7 @@ let nolz_preload = function(url,tag,img)
 
 }
 
-let nolz_loading = function(url,tag,img)
+let nolz_loading = async function(url,tag,img)
 {
     if(nolz_di_check())
     {
@@ -125,7 +125,7 @@ let nolz_loading = function(url,tag,img)
     nolz_lazypics.push(url)
 }
 
-let nolz_di_check = function()
+let nolz_di_check = async function()
 {
     let hn = document.location.hostname;
     for(let i=0;i<nolz_inspics.length;i++)
@@ -138,7 +138,7 @@ let nolz_di_check = function()
     return false;
 }
 
-let nolz_observer = new MutationObserver(function(mutations)
+let nolz_observer = new MutationObserver(async function(mutations)
 {
     nolz_nolazyload();
 });
@@ -148,8 +148,8 @@ nolz_observer.observe(document.documentElement, {
   subtree: true
 });
 
-( function(){
-	function removeLazy (elm, attr) {
+( async function(){
+	async function removeLazy (elm, attr) {
 		if( elm.getAttribute(attr) && elm.src != elm.getAttribute(attr) )
 		{
 			elm.src = elm.getAttribute(attr);
@@ -157,7 +157,7 @@ nolz_observer.observe(document.documentElement, {
 		}
 	}
 
-	function replaceLazyload(doc) {
+	async function replaceLazyload(doc) {
 		var img = doc.images;
 		var i;
 		if ( img != undefined )
@@ -169,7 +169,7 @@ nolz_observer.observe(document.documentElement, {
 		}
 	}
 
-	function getEvent(evt){
+	async function getEvent(evt){
 		var node = evt.target;
 		replaceLazyload(node);
 	}
@@ -179,7 +179,7 @@ nolz_observer.observe(document.documentElement, {
 	document.body.addEventListener('AutoPagerize_DOMNodeInserted', getEvent, false);
 }, !1);
 
-document.getElementsByTagName("body")[0].addEventListener("wheel",function (event) {
+document.getElementsByTagName("body")[0].addEventListener("wheel",async function (event) {
     'use strict';
     if (event.target.classList.contains('ace_content')) {
         return;
@@ -188,10 +188,10 @@ document.getElementsByTagName("body")[0].addEventListener("wheel",function (even
     event.stopPropagation();
 }, !1);
 
-document.addEventListener('keydown', function(e) { e.stopPropagation(); }, !1);
-document.addEventListener('keyup', function(e) { e.stopPropagation(); }, !1);
-document.addEventListener('mousedown', function(e) { e.stopPropagation(); }, !1);
-document.addEventListener('mouseup', function(e) { e.stopPropagation(); }, !1);
+document.addEventListener('keydown', async function(e) { e.stopPropagation(); }, !1);
+document.addEventListener('keyup', async function(e) { e.stopPropagation(); }, !1);
+document.addEventListener('mousedown', async function(e) { e.stopPropagation(); }, !1);
+document.addEventListener('mouseup', async function(e) { e.stopPropagation(); }, !1);
 
 
 (async function() {
