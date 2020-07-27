@@ -3,7 +3,7 @@
 // @namespace    DNA Shield
 // @description  Dominion With Domination
 // @copyright    ©2020 - Yoga Budiman
-// @version      4.0
+// @version      4.1
 // @author       Last Roze
 // @homepageURL  https://github.com/LastRoze/
 // @supportURL   https://linkedin.com/in/lastroze
@@ -35,7 +35,7 @@
 // ==/UserScript==
 
 (function() {
-	'use strict';
+    'use strict';
     window.seconds = -1;
 }, !1);
 
@@ -47,7 +47,7 @@ let DNA_prehref = document.location.href;
 
 let DNA_nolazyload = function()
 {
-	try
+    try
     {
         if (document.location.href != DNA_prehref){
             DNA_prehref = document.location.href;
@@ -91,7 +91,7 @@ let DNA_preload = function(url,tag,img)
     let loaded = false;
     for(let i = 0; i<DNA_lazypics.length;i++)
     {
-		if(url == DNA_lazypics[i])
+        if(url == DNA_lazypics[i])
         {
             loaded = true;
             break;
@@ -224,12 +224,12 @@ document.addEventListener('mouseup', function(e) { e.stopPropagation(); }, !1);
 (function(){
     let style = document.createElement('style');
     style.textContent = `*,*::before,*::after{
-        /*animation-delay: 0ms !important;
-        animation-duration: 0ms !important;*/
+        /*animation-delay: 0.001ms !important;
+        animation-duration: 0.001ms !important;*/
         animation-timing-function: step-start !important;
 
-        /*transition-delay: 0ms !important;
-        transition-duration: 0ms !important;*/
+        /*transition-delay: 0.001ms !important;
+        transition-duration: 0.001ms !important;*/
         transition-timing-function: step-start !important;
 
         scroll-behavior: auto !important;
