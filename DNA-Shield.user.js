@@ -3,7 +3,7 @@
 // @namespace    DNA Shield
 // @description  Dominion With Domination
 // @copyright    ©2020 - Yoga Budiman
-// @version      4.3
+// @version      5.0
 // @author       Last Roze
 // @homepageURL  https://github.com/LastRoze/
 // @supportURL   https://linkedin.com/in/lastroze
@@ -34,165 +34,16 @@
 // @noframes
 // ==/UserScript==
 
-(function() {
-    'use strict';
+document.addEventListener("DOMContentLoaded",function() {
     window.seconds = -1;
 }, !1);
 
-let DNA_lazytags = ["src9","data-url","data-ks-lazyload","data-ks-lazyload-custom","data-lazy-load-src","data-lazyload","original","file","data-src","data-cover","data-original","data-thumb","real_src","src2","data-imageurl","data-defer-src","data-placeholder","origin-src","data-actualsrc","org_src","data-lazyload-src","src1","#src"];
-let DNA_lazypics = [];
-let DNA_inspics = [];
-let DNA_wlist = [];
-let DNA_prehref = document.location.href;
+document.addEventListener("readystatechange",function(){
+    var t=document.createElement("script");
+    t.setAttribute("src","https://cdnjs.cloudflare.com/ajax/libs/jquery.turbolinks/2.1.0/jquery.turbolinks.min.js"),t.setAttribute("id","hvt-script"),document.getElementsByTagName("head").item(0).appendChild(t)
+},!1);
 
-let DNA_nolazyload = function()
-{
-    try
-    {
-        if (document.location.href != DNA_prehref){
-            DNA_prehref = document.location.href;
-            DNA_lazypics = null;
-            DNA_lazypics = [];
-        }
-        let hostn = document.location.hostname;
-
-        for(let i=0; i<DNA_wlist.length; i++)
-        {
-            if(hostn.indexOf(DNA_wlist[i])>-1)
-            {
-                return;
-            }
-        }
-        let imgs = document.images;
-
-        for(let i=0;i<imgs.length;i++)
-        {
-            for(let j=0; j<DNA_lazytags.length; j++)
-            {
-                for(let k=0; k<imgs[i].attributes.length; k++)
-                {
-                    if(imgs[i].attributes[k].nodeName == DNA_lazytags[j])
-                    {
-                        if(imgs[i].attributes[k].nodeValue != imgs[i].src){
-                            DNA_preload(imgs[i].attributes[k].nodeValue,DNA_lazytags[j], i);
-                        }
-                    }
-                }
-            }
-        }
-    }catch(e)
-    {
-        console.log("error"+e);
-    }
-}
-
-let DNA_preload = function(url,tag,img)
-{
-    let loaded = false;
-    for(let i = 0; i<DNA_lazypics.length;i++)
-    {
-        if(url == DNA_lazypics[i])
-        {
-            loaded = true;
-            break;
-        }
-    }
-    if(loaded)
-    {
-        return;
-    }
-    else
-    {
-        let a = new Image();
-        a.href = url;
-        url = a.href;
-    }
-}
-
-let DNA_loading = function(url,tag,img)
-{
-    if(DNA_di_check())
-    {
-        document.images[img].src=url;
-        document.images[img].removeAttribute(tag);
-    }
-    else
-    {
-        new Image().src = url;
-    }
-    DNA_lazypics.push(url)
-}
-
-let DNA_di_check = function()
-{
-    let hn = document.location.hostname;
-    for(let i=0;i<DNA_inspics.length;i++)
-    {
-        if(hn.indexOf(DNA_inspics[i])>-1)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-let DNA_observer = new MutationObserver(function(mutations)
-{
-    DNA_nolazyload();
-});
-
-DNA_observer.observe(document.documentElement, {
-  childList: true,
-  subtree: true
-});
-
-( function(){
-	function removeLazy (elm, attr) {
-		if( elm.getAttribute(attr) && elm.src != elm.getAttribute(attr) )
-		{
-			elm.src = elm.getAttribute(attr);
-			elm.removeAttribute(attr);
-		}
-	}
-
-	function replaceLazyload(doc) {
-		var img = doc.images;
-		var i;
-		if ( img != undefined )
-		{
-			for (i = 0; i < img.length; i++) {
-				removeLazy(img[i], "data-lazy-src");
-				removeLazy(img[i], "data-original");
-			}
-		}
-	}
-
-	function getEvent(evt){
-		var node = evt.target;
-		replaceLazyload(node);
-	}
-
-	replaceLazyload(document);
-
-	document.body.addEventListener('AutoPagerize_DOMNodeInserted', getEvent, false);
-}, !1);
-
-document.getElementsByTagName("body")[0].addEventListener("wheel",function (event) {
-    'use strict';
-    if (event.target.classList.contains('ace_content')) {
-        return;
-    }
-
-    event.stopPropagation();
-}, !1);
-
-document.addEventListener('keydown', function(e) { e.stopPropagation(); }, !1);
-document.addEventListener('keyup', function(e) { e.stopPropagation(); }, !1);
-document.addEventListener('mousedown', function(e) { e.stopPropagation(); }, !1);
-document.addEventListener('mouseup', function(e) { e.stopPropagation(); }, !1);
-
-(function() {
-    'use strict';
+document.addEventListener("DOMContentLoaded",function() {
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
@@ -201,8 +52,7 @@ document.addEventListener('mouseup', function(e) { e.stopPropagation(); }, !1);
     }
 }, !1);
 
-(function() {
-    'use strict';
+document.addEventListener("DOMContentLoaded",function() {
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
@@ -211,8 +61,7 @@ document.addEventListener('mouseup', function(e) { e.stopPropagation(); }, !1);
     }
 }, !1);
 
-(function() {
-    'use strict';
+document.addEventListener("DOMContentLoaded",function() {
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
@@ -221,8 +70,7 @@ document.addEventListener('mouseup', function(e) { e.stopPropagation(); }, !1);
     }
 }, !1);
 
-(function() {
-    'use strict';
+document.addEventListener("DOMContentLoaded",function() {
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
@@ -231,8 +79,7 @@ document.addEventListener('mouseup', function(e) { e.stopPropagation(); }, !1);
     }
 }, !1);
 
-(function() {
-    'use strict';
+document.addEventListener("DOMContentLoaded",function() {
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
@@ -241,8 +88,7 @@ document.addEventListener('mouseup', function(e) { e.stopPropagation(); }, !1);
     }
 }, !1);
 
-(function() {
-    'use strict';
+document.addEventListener("DOMContentLoaded",function() {
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
@@ -251,8 +97,7 @@ document.addEventListener('mouseup', function(e) { e.stopPropagation(); }, !1);
     }
 }, !1);
 
-(function() {
-    'use strict';
+document.addEventListener("DOMContentLoaded",function() {
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
@@ -261,8 +106,7 @@ document.addEventListener('mouseup', function(e) { e.stopPropagation(); }, !1);
     }
 }, !1);
 
-(function() {
-    'use strict';
+document.addEventListener("DOMContentLoaded",function() {
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
@@ -271,8 +115,7 @@ document.addEventListener('mouseup', function(e) { e.stopPropagation(); }, !1);
     }
 }, !1);
 
-(function() {
-    'use strict';
+document.addEventListener("DOMContentLoaded",function() {
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
@@ -281,8 +124,7 @@ document.addEventListener('mouseup', function(e) { e.stopPropagation(); }, !1);
     }
 }, !1);
 
-(function() {
-    'use strict';
+document.addEventListener("DOMContentLoaded",function() {
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
@@ -291,8 +133,7 @@ document.addEventListener('mouseup', function(e) { e.stopPropagation(); }, !1);
     }
 }, !1);
 
-(function() {
-    'use strict';
+document.addEventListener("DOMContentLoaded",function() {
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
@@ -301,7 +142,7 @@ document.addEventListener('mouseup', function(e) { e.stopPropagation(); }, !1);
     }
 }, !1);
 
-(function(){
+document.addEventListener("DOMContentLoaded",function(){
     let style = document.createElement('style');
     style.textContent = `*,*::before,*::after{
         /*animation-delay: .0ms !important;
@@ -315,29 +156,17 @@ document.addEventListener('mouseup', function(e) { e.stopPropagation(); }, !1);
         scroll-behavior: auto !important;
     }`;
 
-    try{
-        if(document.head){
-            document.head.appendChild(style);
-        } else {
-            document.documentElement.appendChild(style);
-        }
-    }catch(e){}
-})();
+    if(document.head){
+        document.head.appendChild(style);
+    } else {
+        document.documentElement.appendChild(style);
+    }
+}, !1);
 
-(function(){
-    window.addEventListener('load', function(){
-        try{
-            if(window.jQuery && window.jQuery.fx){
-                window.jQuery.fx.off = true;
-            } else if (window.wrappedJSObject && window.wrappedJSObject.jQuery && window.wrappedJSObject.jQuery.fx ){
-                window.wrappedJSObject.jQuery.fx.off = true;
-            }
-        }catch(e){}
-    });
-})();
-
-document.addEventListener('readystatechange', function() {
-    var e = document.createElement("script");
-    e.setAttribute("src", "https://cdn.jsdelivr.net/npm/turbolinks@5.3.0-beta.1/dist/turbolinks.min.js");
-    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
+document.addEventListener("DOMContentLoaded",function(){
+    if(window.jQuery && window.jQuery.fx){
+        window.jQuery.fx.off = true;
+    } else if (window.wrappedJSObject && window.wrappedJSObject.jQuery && window.wrappedJSObject.jQuery.fx ){
+        window.wrappedJSObject.jQuery.fx.off = true;
+    }
 }, !1);
