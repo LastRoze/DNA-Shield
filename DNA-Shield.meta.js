@@ -1,35 +1,42 @@
 // ==UserScript==
-// @name         DNA Shield
-// @namespace    DNA Shield
-// @description  Dominion With Domination
-// @copyright    ©2020 - Yoga Budiman
-// @version      6.1
-// @author       Last Roze
-// @homepageURL  https://github.com/LastRoze/
-// @supportURL   https://linkedin.com/in/lastroze
-// @updateURL    https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.meta.js
-// @downloadURL  https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.user.js
-// @icon         https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
-// @require
-// @run-at       document-start
-// @include      *
-// @include      http://*
-// @include      https://*
-// @match        *://*/*
-// @connect      *
-// @grant        GM_addStyle
-// @grant        GM_deleteValue
-// @grant        GM_getResourceURL
-// @grant        GM_getValue
-// @grant        GM_openInTab
-// @grant        GM_registerMenuCommand
-// @grant        GM_setValue
-// @grant        GM_xmlhttpRequest
-// @grant        GM.deleteValue
-// @grant        GM.getResourceUrl
-// @grant        GM.getValue
-// @grant        GM.openInTab
-// @grant        GM.xmlHttpRequest
-// @grant        unsafeWindow
-// @noframes
+// @name		DNA Shield
+// @namespace	DNA Shield
+// @version		6.2
+// @author		Last Roze
+// @description	Dominion With Domination
+// @copyright	©2020 - Yoga Budiman
+// @homepage	https://github.com/LastRoze/
+// @homepageURL	https://github.com/LastRoze/
+// @website		https://lastroze.github.io/
+// @source		https://github.com/LastRoze/DNA-Shield
+// @icon		https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
+// @iconURL		https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
+// @defaulticon	https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
+// @icon64		https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
+// @icon64URL	https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
+// @updateURL	https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.meta.js
+// @downloadURL	https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.user.js
+// @supportURL	https://lastroze.github.io/
+// @include		*
+// @match		*://*/*
+// @connect		*
+// @run-at		document-start
+// @grant		GM_addStyle
+// @grant		GM_deleteValue
+// @grant		GM_download
+// @grant		GM_getResourceText
+// @grant		GM_getResourceURL
+// @grant		GM_getValue
+// @grant		GM_listValues
+// @grant		GM_notification
+// @grant		GM_openInTab
+// @grant		GM_registerMenuCommand
+// @grant		GM_setClipboard
+// @grant		GM_setValue
+// @grant		GM_unregisterMenuCommand
+// @grant		GM_xmlhttpRequest
+// @grant		unsafeWindow
+// @grant		window.close
+// @grant		window.focus
+// @grant		window.onurlchange
 // ==/UserScript==
