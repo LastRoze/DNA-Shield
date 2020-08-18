@@ -127,6 +127,24 @@ document.addEventListener("readystatechange",function(){
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
+        elm.setAttribute('style', attr + 'animation: loading .0ms !important;');
+        elm.classList.remove('async-hide');
+    }
+})();
+
+(function() {
+    const node = document.getElementsByTagName('html');
+    for (const elm of node) {
+        const attr = elm.getAttribute('style') || '';
+        elm.setAttribute('style', attr + '-webkit-animation: loading .0ms !important;');
+        elm.classList.remove('async-hide');
+    }
+})();
+
+(function() {
+    const node = document.getElementsByTagName('html');
+    for (const elm of node) {
+        const attr = elm.getAttribute('style') || '';
         elm.setAttribute('style', attr + 'animation-delay: .0ms !important;');
         elm.classList.remove('async-hide');
     }
@@ -146,6 +164,15 @@ document.addEventListener("readystatechange",function(){
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
         elm.setAttribute('style', attr + 'animation-timing-function: step-end !important;');
+        elm.classList.remove('async-hide');
+    }
+})();
+
+(function() {
+    const node = document.getElementsByTagName('html');
+    for (const elm of node) {
+        const attr = elm.getAttribute('style') || '';
+        elm.setAttribute('style', attr + ' -webkit-animation-timing-function: step-end !important;');
         elm.classList.remove('async-hide');
     }
 })();
