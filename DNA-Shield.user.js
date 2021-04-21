@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name	DNA Shield
 // @namespace	DNA Shield
-// @version	6.5
+// @version	6.6
 // @author	Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - Yoga Budiman
@@ -40,24 +40,6 @@
 // @grant	window.focus
 // @grant	window.onurlchange
 // ==/UserScript==
-
-document.addEventListener("DOMContentLoaded", function() {
-    var e = document.createElement("script");
-    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/jquery.turbolinks/2.1.0/jquery.turbolinks.min.js");
-    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
-},!1);
-
-document.addEventListener("DOMContentLoaded", function() {
-    var e = document.createElement("script");
-    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/instantclick/3.1.0/instantclick.min.js");
-    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
-},!1);
-
-document.addEventListener("DOMContentLoaded", function() {
-    var e = document.createElement("script");
-    e.setAttribute("src", "https://cdnjs.cloudflare.com/ajax/libs/fastclick/1.0.6/fastclick.min.js");
-    document.getElementsByTagName("head").item(0).insertBefore(e, document.getElementById('hvt-script'));
-},!1);
 
 (function() {
     window.seconds = -1;
