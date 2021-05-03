@@ -1,44 +1,44 @@
 // ==UserScript==
-// @name	DNA Shield
+// @name		DNA Shield
 // @namespace	DNA Shield
-// @version	6.6
-// @author	Last Roze
+// @version		7.0
+// @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - Yoga Budiman
 // @homepage	https://github.com/LastRoze/
 // @homepageURL	https://github.com/LastRoze/
-// @website	https://lastroze.github.io/
-// @source	https://github.com/LastRoze/DNA-Shield
-// @icon	https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
-// @iconURL	https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
+// @website		https://lastroze.github.io/
+// @source		https://github.com/LastRoze/DNA-Shield
+// @icon		https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
+// @iconURL		https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
 // @defaulticon	https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
-// @icon64	https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
+// @icon64		https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
 // @icon64URL	https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
 // @updateURL	https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.meta.js
 // @downloadURL	https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.user.js
 // @supportURL	https://lastroze.github.io/
-// @include	*
-// @exclude	https://docs.google.com/*
-// @connect	*
-// @run-at	document-start
-// @grant	GM_addStyle
-// @grant	GM_deleteValue
-// @grant	GM_download
-// @grant	GM_getResourceText
-// @grant	GM_getResourceURL
-// @grant	GM_getValue
-// @grant	GM_listValues
-// @grant	GM_notification
-// @grant	GM_openInTab
-// @grant	GM_registerMenuCommand
-// @grant	GM_setClipboard
-// @grant	GM_setValue
-// @grant	GM_unregisterMenuCommand
-// @grant	GM_xmlhttpRequest
-// @grant	unsafeWindow
-// @grant	window.close
-// @grant	window.focus
-// @grant	window.onurlchange
+// @include		*
+// @exclude		https://*.google.com/*
+// @connect		*
+// @run-at		document-start
+// @grant		GM_addStyle
+// @grant		GM_deleteValue
+// @grant		GM_download
+// @grant		GM_getResourceText
+// @grant		GM_getResourceURL
+// @grant		GM_getValue
+// @grant		GM_listValues
+// @grant		GM_notification
+// @grant		GM_openInTab
+// @grant		GM_registerMenuCommand
+// @grant		GM_setClipboard
+// @grant		GM_setValue
+// @grant		GM_unregisterMenuCommand
+// @grant		GM_xmlhttpRequest
+// @grant		unsafeWindow
+// @grant		window.close
+// @grant		window.focus
+// @grant		window.onurlchange
 // ==/UserScript==
 
 (function() {
@@ -46,9 +46,9 @@
 })();
 
 (function() {
-    const node = document.getElementsByTagName('html');
+	const node = document.getElementsByTagName('html');
     for (const elm of node) {
-        const attr = elm.getAttribute('style') || '';
+		const attr = elm.getAttribute('style') || '';
         elm.setAttribute('style', attr + ';opacity:1 !important;');
         elm.classList.remove('async-hide');
     }
@@ -139,15 +139,6 @@
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'transition: .0ms !important;');
-        elm.classList.remove('async-hide');
-    }
-})();
-
-(function() {
-    const node = document.getElementsByTagName('html');
-    for (const elm of node) {
-        const attr = elm.getAttribute('style') || '';
         elm.setAttribute('style', attr + 'transition-delay: .0ms !important;');
         elm.classList.remove('async-hide');
     }
@@ -174,15 +165,17 @@
 (function(){
     let style = document.createElement('style');
     style.textContent = `*,*::before,*::after{
-        /*animation-delay: .0ms !important;
-        animation-duration: .0ms !important;*/
+        -moz-transition: none !important;
+        -webkit-transition: none !important;
+        animation-delay: .0ms !important;
+        animation-duration: .0ms !important;
+        animation-fill-mode: none !important;
         animation-timing-function: step-end !important;
-
-        /*transition-delay: .0ms !important;
-        transition-duration: .0ms !important;*/
-        transition-timing-function: step-end !important;
-
         scroll-behavior: auto !important;
+        transition-delay: .0ms !important;
+        transition-duration: .0ms !important;
+        transition-timing-function: step-end !important;
+        transition: none !important;
     }`;
 
     if(document.head){
