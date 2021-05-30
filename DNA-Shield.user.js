@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		7.1
+// @version		7.2
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - Yoga Budiman
@@ -18,7 +18,6 @@
 // @downloadURL	https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.user.js
 // @supportURL	https://lastroze.github.io/
 // @include		*
-// @exclude		
 // @connect		*
 // @run-at		document-start
 // @grant		GM_addStyle
@@ -50,24 +49,6 @@
     for (const elm of node) {
 		const attr = elm.getAttribute('style') || '';
         elm.setAttribute('style', attr + ';opacity:1 !important;');
-        elm.classList.remove('async-hide');
-    }
-})();
-
-(function() {
-    const node = document.getElementsByTagName('html');
-    for (const elm of node) {
-        const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + ';transform: none !important;');
-        elm.classList.remove('async-hide');
-    }
-})();
-
-(function() {
-    const node = document.getElementsByTagName('html');
-    for (const elm of node) {
-        const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'transition: none !important;');
         elm.classList.remove('async-hide');
     }
 })();
@@ -165,17 +146,18 @@
 (function(){
 	let style = document.createElement('style');
     style.textContent = `*,*::before,*::after{
-        -moz-transition: none !important;
-        -webkit-transition: none !important;
+		-webkit-animation-timing-function: step-end !important;
+		-webkit-animation: loading .1ms !important;
+		animation: loading .1ms !important;
         animation-delay: .1ms !important;
         animation-duration: .1ms !important;
         animation-fill-mode: none !important;
         animation-timing-function: step-end !important;
+        opacity:1 !important;
         scroll-behavior: auto !important;
         transition-delay: .1ms !important;
         transition-duration: .1ms !important;
         transition-timing-function: step-end !important;
-        transition: none !important;
     }`;
 
     if(document.head){
