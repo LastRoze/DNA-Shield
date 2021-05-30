@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		7.2
+// @version		7.3
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - Yoga Budiman
@@ -44,12 +44,11 @@
     window.seconds = -1;
 })();
 
-(function() {
-	const node = document.getElementsByTagName('html');
-    for (const elm of node) {
-		const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + ';opacity:1 !important;');
-        elm.classList.remove('async-hide');
+(function(){
+    if(window.jQuery && window.jQuery.fx){
+        window.jQuery.fx.off = true;
+    } else if (window.wrappedJSObject && window.wrappedJSObject.jQuery && window.wrappedJSObject.jQuery.fx ){
+        window.wrappedJSObject.jQuery.fx.off = true;
     }
 })();
 
@@ -57,25 +56,7 @@
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'animation: .1ms !important;');
-        elm.classList.remove('async-hide');
-    }
-})();
-
-(function() {
-    const node = document.getElementsByTagName('html');
-    for (const elm of node) {
-        const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'animation: loading .1ms !important;');
-        elm.classList.remove('async-hide');
-    }
-})();
-
-(function() {
-    const node = document.getElementsByTagName('html');
-    for (const elm of node) {
-        const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + '-webkit-animation: loading .1ms !important;');
+        elm.setAttribute('style', attr + ' -webkit-animation-timing-function: step-end !important;');
         elm.classList.remove('async-hide');
     }
 })();
@@ -111,7 +92,7 @@
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + ' -webkit-animation-timing-function: step-end !important;');
+        elm.setAttribute('style', attr + 'scroll-behavior: auto !important;');
         elm.classList.remove('async-hide');
     }
 })();
@@ -147,13 +128,9 @@
 	let style = document.createElement('style');
     style.textContent = `*,*::before,*::after{
 		-webkit-animation-timing-function: step-end !important;
-		-webkit-animation: loading .1ms !important;
-		animation: loading .1ms !important;
         animation-delay: .1ms !important;
         animation-duration: .1ms !important;
-        animation-fill-mode: none !important;
         animation-timing-function: step-end !important;
-        opacity:1 !important;
         scroll-behavior: auto !important;
         transition-delay: .1ms !important;
         transition-duration: .1ms !important;
@@ -164,13 +141,5 @@
         document.head.appendChild(style);
     } else {
         document.documentElement.appendChild(style);
-    }
-})();
-
-(function(){
-    if(window.jQuery && window.jQuery.fx){
-        window.jQuery.fx.off = true;
-    } else if (window.wrappedJSObject && window.wrappedJSObject.jQuery && window.wrappedJSObject.jQuery.fx ){
-        window.wrappedJSObject.jQuery.fx.off = true;
     }
 })();
