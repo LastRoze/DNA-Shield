@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		7.0
+// @version		7.1
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - Yoga Budiman
@@ -18,7 +18,7 @@
 // @downloadURL	https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.user.js
 // @supportURL	https://lastroze.github.io/
 // @include		*
-// @exclude		https://*.google.com/*
+// @exclude		
 // @connect		*
 // @run-at		document-start
 // @grant		GM_addStyle
@@ -76,7 +76,7 @@
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'animation: .0ms !important;');
+        elm.setAttribute('style', attr + 'animation: .1ms !important;');
         elm.classList.remove('async-hide');
     }
 })();
@@ -85,7 +85,7 @@
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'animation: loading .0ms !important;');
+        elm.setAttribute('style', attr + 'animation: loading .1ms !important;');
         elm.classList.remove('async-hide');
     }
 })();
@@ -94,7 +94,7 @@
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + '-webkit-animation: loading .0ms !important;');
+        elm.setAttribute('style', attr + '-webkit-animation: loading .1ms !important;');
         elm.classList.remove('async-hide');
     }
 })();
@@ -103,7 +103,7 @@
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'animation-delay: .0ms !important;');
+        elm.setAttribute('style', attr + 'animation-delay: .1ms !important;');
         elm.classList.remove('async-hide');
     }
 })();
@@ -112,7 +112,7 @@
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'animation-duration: .0ms !important;');
+        elm.setAttribute('style', attr + 'animation-duration: .1ms !important;');
         elm.classList.remove('async-hide');
     }
 })();
@@ -139,7 +139,7 @@
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'transition-delay: .0ms !important;');
+        elm.setAttribute('style', attr + 'transition-delay: .1ms !important;');
         elm.classList.remove('async-hide');
     }
 })();
@@ -148,7 +148,7 @@
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'transition-duration: .0ms !important;');
+        elm.setAttribute('style', attr + 'transition-duration: .1ms !important;');
         elm.classList.remove('async-hide');
     }
 })();
@@ -163,17 +163,17 @@
 })();
 
 (function(){
-    let style = document.createElement('style');
+	let style = document.createElement('style');
     style.textContent = `*,*::before,*::after{
         -moz-transition: none !important;
         -webkit-transition: none !important;
-        animation-delay: .0ms !important;
-        animation-duration: .0ms !important;
+        animation-delay: .1ms !important;
+        animation-duration: .1ms !important;
         animation-fill-mode: none !important;
         animation-timing-function: step-end !important;
         scroll-behavior: auto !important;
-        transition-delay: .0ms !important;
-        transition-duration: .0ms !important;
+        transition-delay: .1ms !important;
+        transition-duration: .1ms !important;
         transition-timing-function: step-end !important;
         transition: none !important;
     }`;
