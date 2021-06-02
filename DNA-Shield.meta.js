@@ -18,6 +18,7 @@
 // @downloadURL	https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.user.js
 // @supportURL	https://lastroze.github.io/
 // @include		*
+// @exclude		*.google.com
 // @connect		*
 // @run-at		document-start
 // @grant		GM_addStyle
