@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		7.4
+// @version		7.5
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - Yoga Budiman
@@ -18,7 +18,6 @@
 // @downloadURL	https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.user.js
 // @supportURL	https://lastroze.github.io/
 // @include		*
-// @exclude		*.google.com
 // @connect		*
 // @run-at		document-start
 // @grant		GM_addStyle
@@ -66,7 +65,7 @@
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'animation-delay: .1ms !important;');
+        elm.setAttribute('style', attr + 'animation-delay: -1ms !important;');
         elm.classList.remove('async-hide');
     }
 })();
@@ -75,7 +74,7 @@
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'animation-duration: .1ms !important;');
+        elm.setAttribute('style', attr + 'animation-duration: -1ms !important;');
         elm.classList.remove('async-hide');
     }
 })();
@@ -102,7 +101,7 @@
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'transition-delay: .1ms !important;');
+        elm.setAttribute('style', attr + 'transition-delay: -1ms !important;');
         elm.classList.remove('async-hide');
     }
 })();
@@ -111,7 +110,7 @@
     const node = document.getElementsByTagName('html');
     for (const elm of node) {
         const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'transition-duration: .1ms !important;');
+        elm.setAttribute('style', attr + 'transition-duration: -1ms !important;');
         elm.classList.remove('async-hide');
     }
 })();
@@ -129,12 +128,12 @@
 	let style = document.createElement('style');
     style.textContent = `*,*::before,*::after{
 		-webkit-animation-timing-function: step-end !important;
-        animation-delay: .1ms !important;
-        animation-duration: .1ms !important;
+        animation-delay: -1ms !important;
+        animation-duration: -1ms !important;
         animation-timing-function: step-end !important;
         scroll-behavior: auto !important;
-        transition-delay: .1ms !important;
-        transition-duration: .1ms !important;
+        transition-delay: -1ms !important;
+        transition-duration: -1ms !important;
         transition-timing-function: step-end !important;
     }`;
 
