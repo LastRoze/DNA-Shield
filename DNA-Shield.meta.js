@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		7.4
+// @version		7.5
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - Yoga Budiman
@@ -18,7 +18,6 @@
 // @downloadURL	https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.user.js
 // @supportURL	https://lastroze.github.io/
 // @include		*
-// @exclude		*.google.com
 // @connect		*
 // @run-at		document-start
 // @grant		GM_addStyle
