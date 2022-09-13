@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		7.6
+// @version		7.7
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - Yoga Budiman
@@ -41,93 +41,122 @@
 // @grant		window.onurlchange
 // ==/UserScript==
 
-(function() {
-    window.seconds = -1;
+(function () {
+  window.seconds = -1;
 })();
 
-(function(){
-    if(window.jQuery && window.jQuery.fx){
-        window.jQuery.fx.off = true;
-    } else if (window.wrappedJSObject && window.wrappedJSObject.jQuery && window.wrappedJSObject.jQuery.fx ){
-        window.wrappedJSObject.jQuery.fx.off = true;
-    }
+document.addEventListener(
+  "DOMContentLoaded",
+  function () {
+    var e = document.createElement("script");
+    e.setAttribute(
+      "src",
+      "https://cdn.jsdelivr.net/npm/turbojs@1.0.2/turbo.min.js"
+    );
+    document
+      .getElementsByTagName("head")
+      .item(0)
+      .insertBefore(e, document.getElementById("hvt-script"));
+  },
+  !1
+);
+
+(function () {
+  if (window.jQuery && window.jQuery.fx) {
+    window.jQuery.fx.off = true;
+  } else if (
+    window.wrappedJSObject &&
+    window.wrappedJSObject.jQuery &&
+    window.wrappedJSObject.jQuery.fx
+  ) {
+    window.wrappedJSObject.jQuery.fx.off = true;
+  }
 })();
 
-(function() {
-    const node = document.getElementsByTagName('html');
-    for (const elm of node) {
-        const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + ' -webkit-animation-timing-function: step-end !important;');
-        elm.classList.remove('async-hide');
-    }
+(function () {
+  const node = document.getElementsByTagName("html");
+  for (const elm of node) {
+    const attr = elm.getAttribute("style") || "";
+    elm.setAttribute(
+      "style",
+      attr + " -webkit-animation-timing-function: step-end !important;"
+    );
+    elm.classList.remove("async-hide");
+  }
 })();
 
-(function() {
-    const node = document.getElementsByTagName('html');
-    for (const elm of node) {
-        const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'animation-delay: -1ms !important;');
-        elm.classList.remove('async-hide');
-    }
+(function () {
+  const node = document.getElementsByTagName("html");
+  for (const elm of node) {
+    const attr = elm.getAttribute("style") || "";
+    elm.setAttribute("style", attr + "animation-delay: -1ms !important;");
+    elm.classList.remove("async-hide");
+  }
 })();
 
-(function() {
-    const node = document.getElementsByTagName('html');
-    for (const elm of node) {
-        const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'animation-duration: -1ms !important;');
-        elm.classList.remove('async-hide');
-    }
+(function () {
+  const node = document.getElementsByTagName("html");
+  for (const elm of node) {
+    const attr = elm.getAttribute("style") || "";
+    elm.setAttribute("style", attr + "animation-duration: -1ms !important;");
+    elm.classList.remove("async-hide");
+  }
 })();
 
-(function() {
-    const node = document.getElementsByTagName('html');
-    for (const elm of node) {
-        const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'animation-timing-function: step-end !important;');
-        elm.classList.remove('async-hide');
-    }
+(function () {
+  const node = document.getElementsByTagName("html");
+  for (const elm of node) {
+    const attr = elm.getAttribute("style") || "";
+    elm.setAttribute(
+      "style",
+      attr + "animation-timing-function: step-end !important;"
+    );
+    elm.classList.remove("async-hide");
+  }
 })();
 
-(function() {
-    const node = document.getElementsByTagName('html');
-    for (const elm of node) {
-        const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'scroll-behavior: auto !important;');
-        elm.classList.remove('async-hide');
-    }
+(function () {
+  const node = document.getElementsByTagName("html");
+  for (const elm of node) {
+    const attr = elm.getAttribute("style") || "";
+    elm.setAttribute("style", attr + "scroll-behavior: auto !important;");
+    elm.classList.remove("async-hide");
+  }
 })();
 
-(function() {
-    const node = document.getElementsByTagName('html');
-    for (const elm of node) {
-        const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'transition-delay: -1ms !important;');
-        elm.classList.remove('async-hide');
-    }
+(function () {
+  const node = document.getElementsByTagName("html");
+  for (const elm of node) {
+    const attr = elm.getAttribute("style") || "";
+    elm.setAttribute("style", attr + "transition-delay: -1ms !important;");
+    elm.classList.remove("async-hide");
+  }
 })();
 
-(function() {
-    const node = document.getElementsByTagName('html');
-    for (const elm of node) {
-        const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'transition-duration: -1ms !important;');
-        elm.classList.remove('async-hide');
-    }
+(function () {
+  const node = document.getElementsByTagName("html");
+  for (const elm of node) {
+    const attr = elm.getAttribute("style") || "";
+    elm.setAttribute("style", attr + "transition-duration: -1ms !important;");
+    elm.classList.remove("async-hide");
+  }
 })();
 
-(function() {
-    const node = document.getElementsByTagName('html');
-    for (const elm of node) {
-        const attr = elm.getAttribute('style') || '';
-        elm.setAttribute('style', attr + 'transition-timing-function: step-end !important;;');
-        elm.classList.remove('async-hide');
-    }
+(function () {
+  const node = document.getElementsByTagName("html");
+  for (const elm of node) {
+    const attr = elm.getAttribute("style") || "";
+    elm.setAttribute(
+      "style",
+      attr + "transition-timing-function: step-end !important;;"
+    );
+    elm.classList.remove("async-hide");
+  }
 })();
 
-(function(){
-	let style = document.createElement('style');
-    style.textContent = `*,*::before,*::after{
+(function () {
+  let style = document.createElement("style");
+  style.textContent = `*,*::before,*::after{
 		-webkit-animation-timing-function: step-end !important;
         animation-delay: -1ms !important;
         animation-duration: -1ms !important;
@@ -138,9 +167,9 @@
         transition-timing-function: step-end !important;
     }`;
 
-    if(document.head){
-        document.head.appendChild(style);
-    } else {
-        document.documentElement.appendChild(style);
-    }
+  if (document.head) {
+    document.head.appendChild(style);
+  } else {
+    document.documentElement.appendChild(style);
+  }
 })();
