@@ -22,10 +22,9 @@
 // ==UserLibrary==
 // @name        DNA GM Config
 // @description A lightweight, reusable, cross-browser graphical settings framework for inclusion in user scripts.
-// @copyright   ©2021 - Yoga Budiman
+// @copyright   ©2021 - 2023 // Yoga Budiman
 // @license     MIT License: https://github.com/LastRoze/DNA-Shield/blob/master/LICENSE
 // ==/UserLibrary==
-
 
 // The GM_config constructor
 function GM_configStruct() {
