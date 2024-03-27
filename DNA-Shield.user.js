@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		9.0
+// @version		9.1
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - 2023 // Yoga Budiman
@@ -43,8 +43,7 @@
 
 // ========== DNA Native Start ==========
 function fakeForward() {}
-
-unsafeWindow.history.forward = exportFunction(fakeForward, unsafeWindow);
+unsafeWindow.history.forward = fakeForward;
 
 (function () {
   window.seconds = -1;
@@ -121,12 +120,12 @@ style.textContent = `
   }
 
   * {
-    -o-transition-property: none !important;
-    -moz-transition-property: none !important;
-    -ms-transition-property: none !important;
-    -webkit-transition-property: none !important;
-    transition-property: none !important;
-    transition: none !important;
+    -o-transition-property: 0.1 !important;
+    -moz-transition-property: 0.1 !important;
+    -ms-transition-property: 0.1 !important;
+    -webkit-transition-property: 0.1 !important;
+    transition-property: 0.1 !important;
+    transition: 0.1 !important;
 
     -webkit-animation: none !important;
     -moz-animation: none !important;
