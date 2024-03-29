@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		9.1
+// @version		9.2
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - 2023 // Yoga Budiman
@@ -109,29 +109,37 @@ style.textContent = `
   *,
   *::before,
   *::after {
+    -moz-transition-property: 0.1 !important;
+    -ms-transition-property: 0.1 !important;
+    -o-transition-property: 0.1 !important;
     -webkit-animation-timing-function: step-end !important;
+    -webkit-transition-property: 0.1 !important;
     animation-delay: -1ms !important;
     animation-duration: -1ms !important;
     animation-timing-function: step-end !important;
     scroll-behavior: auto !important;
     transition-delay: -1ms !important;
     transition-duration: -1ms !important;
+    transition-property: 0.1 !important;
     transition-timing-function: step-end !important;
+    transition: 0.1 !important;
   }
 
   * {
-    -o-transition-property: 0.1 !important;
     -moz-transition-property: 0.1 !important;
     -ms-transition-property: 0.1 !important;
+    -o-transition-property: 0.1 !important;
+    -webkit-animation-timing-function: step-end !important;
     -webkit-transition-property: 0.1 !important;
+    animation-delay: -1ms !important;
+    animation-duration: -1ms !important;
+    animation-timing-function: step-end !important;
+    scroll-behavior: auto !important;
+    transition-delay: -1ms !important;
+    transition-duration: -1ms !important;
     transition-property: 0.1 !important;
+    transition-timing-function: step-end !important;
     transition: 0.1 !important;
-
-    -webkit-animation: none !important;
-    -moz-animation: none !important;
-    -o-animation: none !important;
-    -ms-animation: none !important;
-    animation: none !important;
   }
 `;
 
