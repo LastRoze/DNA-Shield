@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		9.3
+// @version		9.4
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - 2023 // Yoga Budiman
@@ -87,12 +87,12 @@ style.textContent = `
     -o-transition-property: 0.1 !important;
     -webkit-animation-timing-function: step-end !important;
     -webkit-transition-property: 0.1 !important;
-    animation-delay: -1ms !important;
-    animation-duration: -1ms !important;
+    animation-delay: 0.1 !important;
+    animation-duration: 0.1 !important;
     animation-timing-function: step-end !important;
     scroll-behavior: auto !important;
-    transition-delay: -1ms !important;
-    transition-duration: -1ms !important;
+    transition-delay: 0.1 !important;
+    transition-duration: 0.1 !important;
     transition-property: 0.1 !important;
     transition-timing-function: step-end !important;
     transition: 0.1 !important;
@@ -104,12 +104,12 @@ style.textContent = `
     -o-transition-property: 0.1 !important;
     -webkit-animation-timing-function: step-end !important;
     -webkit-transition-property: 0.1 !important;
-    animation-delay: -1ms !important;
-    animation-duration: -1ms !important;
+    animation-delay: 0.1 !important;
+    animation-duration: 0.1 !important;
     animation-timing-function: step-end !important;
     scroll-behavior: auto !important;
-    transition-delay: -1ms !important;
-    transition-duration: -1ms !important;
+    transition-delay: 0.1 !important;
+    transition-duration: 0.1 !important;
     transition-property: 0.1 !important;
     transition-timing-function: step-end !important;
     transition: 0.1 !important;
