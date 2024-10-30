@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		9.4
+// @version		9.5
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - 2025 // Yoga Budiman
 // @homepage	https://github.com/LastRoze/
 // @homepageURL	https://github.com/LastRoze/
 // @website		https://lastroze.github.io/
-// @source		https://github.com/LastRoze/DNA-Shield
+// @source		https://github.com/LastRoze/DNA-Shiel5
 // @icon		https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
 // @iconURL		https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
 // @defaulticon	https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
