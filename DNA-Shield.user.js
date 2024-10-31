@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		9.5
+// @version		9.6
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - 2025 // Yoga Budiman
@@ -42,52 +42,6 @@
 // ==/UserScript==
 
 // ========== DNA Native Start ==========
-/* global quicklink */
-(function() {
-    'use strict';
-    const ignoreLinks = uri => ['logout', 'login', 'account'].some(word => uri.includes(word));
-    const loadQuicklinkWithRetry = (src, maxAttempts = 3, attempt = 1) => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.onload = () => {
-            if (typeof quicklink !== 'undefined') {
-                quicklink.listen({ origins: true, ignores: [ignoreLinks] });
-            } else if (attempt < maxAttempts) {
-                setTimeout(() => loadQuicklinkWithRetry(src, maxAttempts, attempt + 1), 1000);
-            }
-        };
-        script.onerror = () => {
-            if (attempt < maxAttempts) {
-                setTimeout(() => loadQuicklinkWithRetry(src, maxAttempts, attempt + 1), 1000);
-            }
-        };
-        document.head.appendChild(script);
-    };
-    const injectQuicklink = () => {
-        if (document.head) {
-            loadQuicklinkWithRetry('https://unpkg.com/quicklink@2.0.0/dist/quicklink.umd.js');
-        } else {
-            const observer = new MutationObserver((mutationsList, observer) => {
-                if (document.head) {
-                    loadQuicklinkWithRetry('https://unpkg.com/quicklink@2.0.0/dist/quicklink.umd.js');
-                    observer.disconnect();
-                }
-            });
-            observer.observe(document, { childList: true, subtree: true });
-        }
-    };
-    injectQuicklink();
-    window.addEventListener('error', e => console.error('Script error:', e.message));
-    document.addEventListener('click', e => {
-        if (e.target.tagName === 'A' && ignoreLinks(e.target.href)) {
-            e.preventDefault();
-        }
-    });
-    setInterval(() => {
-        navigator.sendBeacon ? navigator.sendBeacon('/keep-alive', '') : new XMLHttpRequest().open('POST', '/keep-alive', true).send('');
-    }, 300000);
-})();
-
 function fakeForward() {}
 unsafeWindow.history.forward = fakeForward;
 
