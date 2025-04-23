@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		9.6
+// @version		10.1
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - 2025 // Yoga Budiman
