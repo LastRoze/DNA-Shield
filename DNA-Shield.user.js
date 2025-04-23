@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		9.6
+// @version		10.1
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - 2025 // Yoga Budiman
@@ -121,4 +121,30 @@ if (document.head) {
 } else {
   document.documentElement.appendChild(style);
 }
+(function() {
+    'use strict';
+    const spoof = (obj, prop, val) => {
+        Object.defineProperty(obj, prop, {
+            get: () => typeof val === 'function' ? val() : val,
+            configurable: true
+        });
+    };
+    spoof(document, 'hidden', false);
+    spoof(document, 'visibilityState', 'visible');
+    spoof(document, 'webkitHidden', false);
+    spoof(document, 'mozHidden', false);
+    spoof(document, 'msHidden', false);
+    spoof(document, 'hasFocus', () => true);
+    document.hasFocus = () => true;
+    const blockedEvents = ['visibilitychange', 'webkitvisibilitychange', 'blur', 'pagehide', 'freeze'];
+    blockedEvents.forEach(eventName => {
+        window.addEventListener(eventName, e => e.stopImmediatePropagation(), true);
+        document.addEventListener(eventName, e => e.stopImmediatePropagation(), true);
+    });
+    const fakeHeartbeat = () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+        window.dispatchEvent(new Event('focus'));
+    };
+    setInterval(fakeHeartbeat, 10000);
+})();
 // ========== DNA Native End ==========
