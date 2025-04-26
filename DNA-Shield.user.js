@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		10.1
+// @version		10.2
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - 2025 // Yoga Budiman
@@ -121,30 +121,84 @@ if (document.head) {
 } else {
   document.documentElement.appendChild(style);
 }
-(function() {
+
+(function () {
     'use strict';
-    const spoof = (obj, prop, val) => {
-        Object.defineProperty(obj, prop, {
-            get: () => typeof val === 'function' ? val() : val,
-            configurable: true
+    (function patchDocumentHasFocus() {
+        const originalHasFocus = document.hasFocus.bind(document);
+        function alwaysTrueHasFocus() {
+            return true;
+        }
+        try {
+            Object.defineProperty(document, 'hasFocus', {
+                value: alwaysTrueHasFocus,
+                writable: false,
+                configurable: false,
+                enumerable: true
+            });
+        } catch (e) {document.hasFocus = alwaysTrueHasFocus;}
+    })();
+    (function patchVisibility() {
+        const spoof = (obj, prop, val) => {
+            const descriptor = Object.getOwnPropertyDescriptor(obj, prop);
+            if (!descriptor || descriptor.configurable) {
+                Object.defineProperty(obj, prop, {
+                    get: () => typeof val === 'function' ? val() : val,
+                    configurable: true
+                });
+            }
+        };
+        spoof(document, 'hidden', false);
+        spoof(document, 'visibilityState', 'visible');
+        spoof(document, 'webkitHidden', false);
+        spoof(document, 'mozHidden', false);
+        spoof(document, 'msHidden', false);
+    })();
+    (function spoofWebGL() {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (context) {
+            const getParameter = context.getParameter.bind(context);
+            context.getParameter = function (param) {
+                if (param === context.VERSION || param === context.VENDOR) {return 'Fake GPU';}
+                return getParameter(param);
+            };
+        }
+    })();
+    (function spoofBattery() {
+        if (navigator.getBattery) {
+            const fakeBattery = {
+                charging: false,
+                chargingTime: 0,
+                dischargingTime: Infinity,
+                level: 1,
+            };
+            navigator.getBattery = () => Promise.resolve(fakeBattery);
+        }
+    })();
+    (function patchDateTime() {
+        const originalDate = Date;
+        const fakeDate = function() {return new originalDate(0);};
+        fakeDate.now = originalDate.now;
+        window.Date = fakeDate;
+    })();
+    (function blockEventListeners() {
+        const blockedEvents = ['visibilitychange', 'webkitvisibilitychange', 'blur', 'pagehide', 'freeze'];
+        blockedEvents.forEach(eventName => {
+            window.addEventListener(eventName, e => e.stopImmediatePropagation(), true);
+            document.addEventListener(eventName, e => e.stopImmediatePropagation(), true);
         });
-    };
-    spoof(document, 'hidden', false);
-    spoof(document, 'visibilityState', 'visible');
-    spoof(document, 'webkitHidden', false);
-    spoof(document, 'mozHidden', false);
-    spoof(document, 'msHidden', false);
-    spoof(document, 'hasFocus', () => true);
-    document.hasFocus = () => true;
-    const blockedEvents = ['visibilitychange', 'webkitvisibilitychange', 'blur', 'pagehide', 'freeze'];
-    blockedEvents.forEach(eventName => {
-        window.addEventListener(eventName, e => e.stopImmediatePropagation(), true);
-        document.addEventListener(eventName, e => e.stopImmediatePropagation(), true);
-    });
-    const fakeHeartbeat = () => {
-        document.dispatchEvent(new Event('visibilitychange'));
-        window.dispatchEvent(new Event('focus'));
-    };
-    setInterval(fakeHeartbeat, 10000);
+    })();
+    (function randomizeHeartbeat() {
+        const randomDelay = Math.random() * 1000 + 9500;
+        setInterval(() => {
+            document.dispatchEvent(new Event('visibilitychange'));
+            window.dispatchEvent(new Event('focus'));
+        }, randomDelay);
+    })();
+    (function fakePerformanceNow() {
+        const originalPerformanceNow = performance.now.bind(performance);
+        performance.now = function () {return originalPerformanceNow() + (Math.random() - 0.5) * 100;};
+    })();
 })();
 // ========== DNA Native End ==========
