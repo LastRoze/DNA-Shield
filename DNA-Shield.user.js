@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		10.4
+// @version		10.5
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - 2025 // Yoga Budiman
@@ -153,7 +153,7 @@ if (document.head) {
         spoof(document, 'webkitHidden', false);
         spoof(document, 'mozHidden', false);
         spoof(document, 'msHidden', false);
-    })()
+    })();
     (function blockEventListeners() {
         const blockedEvents = ['visibilitychange', 'webkitvisibilitychange', 'blur', 'pagehide', 'freeze'];
         blockedEvents.forEach(eventName => {
