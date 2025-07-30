@@ -3,7 +3,7 @@
 // @namespace	DNA Shield
 // @version		11.0
 // @author		Last Roze
-// @description	Maximum Smart Performance - Intelligent & Fast
+// @description	Dominion With Domination
 // @copyright	©2021 - 2025 // Yoga Budiman
 // @homepage	https://github.com/LastRoze/
 // @homepageURL	https://github.com/LastRoze/
