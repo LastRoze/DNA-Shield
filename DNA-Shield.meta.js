@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		10.5
+// @version		11.0
 // @author		Last Roze
-// @description	Dominion With Domination
+// @description	Maximum Smart Performance - Intelligent & Fast
 // @copyright	©2021 - 2025 // Yoga Budiman
 // @homepage	https://github.com/LastRoze/
 // @homepageURL	https://github.com/LastRoze/
 // @website		https://lastroze.github.io/
-// @source		https://github.com/LastRoze/DNA-Shiel5
+// @source		https://github.com/LastRoze/DNA-Shield
 // @icon		https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
 // @iconURL		https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
 // @defaulticon	https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
@@ -18,7 +18,6 @@
 // @downloadURL	https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.user.js
 // @supportURL	https://lastroze.github.io/
 // @match		*://*/*
-// @exclude		https://docs.google.com/*
 // @connect		*
 // @run-at		document-start
 // @grant		GM_addStyle
@@ -40,5 +39,3 @@
 // @grant		window.focus
 // @grant		window.onurlchange
 // ==/UserScript==
-
-// ========== DNA Native Start ==========
