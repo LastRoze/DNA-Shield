@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		11.0
+// @version		11.1
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - 2025 // Yoga Budiman
@@ -40,663 +40,475 @@
 // @grant		window.onurlchange
 // ==/UserScript==
 
-(function() {
+(() => {
 'use strict';
 
-// ========== Advanced Site Intelligence ==========
-const analyzeCurrentSite = () => {
-    const hostname = window.location.hostname.toLowerCase();
-    const pathname = window.location.pathname.toLowerCase();
-    const userAgent = navigator.userAgent.toLowerCase();
-
-    return {
-        // Site categories
-        isEcommerce: /tokopedia|shopee|lazada|bukalapak|blibli|amazon|ebay|aliexpress|walmart|target/.test(hostname),
-        isVideo: /youtube|vimeo|dailymotion|twitch|netflix|hulu|disney/.test(hostname),
-        isSocial: /facebook|twitter|instagram|linkedin|tiktok|reddit|snapchat/.test(hostname),
-        isNews: /detik|kompas|cnn|bbc|reuters|tempo|guardian|nytimes/.test(hostname),
-        isBanking: /bca|mandiri|bni|bri|cimb|danamon|bank|paypal|stripe/.test(hostname),
-        isGaming: /steam|epic|origin|battle\.net|riot|roblox|minecraft/.test(hostname),
-        isStreaming: /spotify|soundcloud|pandora|deezer/.test(hostname),
-        isProductivity: /trello|asana|slack|teams|notion|airtable/.test(hostname),
-
-        // Performance characteristics
-        isReactApp: /react/i.test(document.documentElement.innerHTML) || window.React,
-        isVueApp: window.Vue || document.querySelector('[data-vue]'),
-        isAngularApp: window.angular || document.querySelector('[ng-app]'),
-        isSPA: history.pushState && !window.location.hash,
-
-        // Device characteristics
-        isMobile: /mobile|android|iphone|ipad/.test(userAgent),
-        isTablet: /tablet|ipad/.test(userAgent),
-        isDesktop: !/mobile|tablet|android|iphone|ipad/.test(userAgent),
-
-        // Browser capabilities
-        supportsWebGL: !!window.WebGLRenderingContext,
-        supportsWorkers: !!window.Worker,
-        supportsIntersectionObserver: !!window.IntersectionObserver,
-
-        // Performance hints
-        hasHeavyAnimations: document.querySelectorAll('[class*="animate"], [class*="transition"]').length > 10,
-        hasVideoContent: document.querySelectorAll('video, iframe[src*="youtube"], iframe[src*="vimeo"]').length > 0,
-        hasLazyLoading: document.querySelectorAll('[loading="lazy"], [data-lazy]').length > 0
-    };
-};
-
-const siteProfile = analyzeCurrentSite();
-
-// Skip on critical sites completely
-if (siteProfile.isBanking || siteProfile.isProductivity) {
-    return;
-}
-
-// ========== Ultra-Safe Execution Framework ==========
-const SafeExecution = {
-    errors: 0,
-    maxErrors: 3,
-
-    execute(fn, context = 'Unknown', fallback = () => false) {
-        if (this.errors >= this.maxErrors) {
-            return fallback();
-        }
-
-        try {
-            return fn();
-        } catch (e) {
-            this.errors++;
-            if (this.errors >= this.maxErrors) {
-                console.warn('DNA Shield: Too many errors, entering safe mode');
-            }
-            return fallback();
-        }
+// ========== BULLETPROOF SAFETY CORE ==========
+const BULLETPROOF = {
+    // Ultra-safe execution - never throws
+    safe(fn, fallback = () => {}) {
+        try { return fn() || fallback(); } catch { return fallback(); }
     },
 
-    defineProperty(obj, prop, descriptor) {
-        return this.execute(() => {
-            if (!obj || typeof obj !== 'object' || !prop) return false;
+    // Check if property can be modified
+    canSet(obj, prop) {
+        return this.safe(() => {
+            if (!obj || typeof obj !== 'object') return false;
+            const desc = Object.getOwnPropertyDescriptor(obj, prop);
+            return !desc || desc.writable !== false || desc.set || desc.configurable !== false;
+        });
+    },
 
-            const existing = Object.getOwnPropertyDescriptor(obj, prop);
-            if (existing && !existing.configurable) return false;
-
-            Object.defineProperty(obj, prop, {
-                ...descriptor,
-                configurable: true
-            });
+    // Safe property override
+    set(obj, prop, value) {
+        return this.safe(() => {
+            if (!this.canSet(obj, prop)) return false;
+            obj[prop] = value;
             return true;
-        }, `defineProperty:${prop}`);
+        });
     },
 
-    patchFunction(obj, methodName, newImpl, context = '') {
-        return this.execute(() => {
-            if (!obj || !obj[methodName] || typeof obj[methodName] !== 'function') return false;
+    // Safe function patching
+    patch(obj, method, impl) {
+        return this.safe(() => {
+            if (!obj[method] || typeof obj[method] !== 'function') return false;
+            if (!this.canSet(obj, method)) return false;
 
-            const original = obj[methodName].bind(obj);
-            obj[methodName] = function(...args) {
-                try {
-                    return newImpl.call(this, original, ...args);
-                } catch (e) {
-                    return original.apply(this, args);
-                }
+            const original = obj[method];
+            obj[method] = function(...args) {
+                try { return impl.call(this, original.bind(this), ...args); }
+                catch { return original.apply(this, args); }
             };
             return true;
-        }, `patchFunction:${methodName}${context}`);
+        });
     }
 };
 
-// ========== Hyper-Aggressive CSS Performance ==========
-const createHyperPerformanceCSS = () => {
-    let aggressiveness = 1; // Base level
+// ========== INSANE SPEED CSS INJECTION ==========
+const HYPER_CSS = `
+/* INSANE SPEED MODE - ZERO COMPROMISE */
+*,*::before,*::after,*:hover,*:focus,*:active {
+    animation-duration: 0.001s !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.001s !important;
+    transition-delay: 0s !important;
+    animation-fill-mode: forwards !important;
+    animation-play-state: running !important;
+}
 
-    // Increase aggressiveness based on site characteristics
-    if (siteProfile.isEcommerce) aggressiveness = 2;
-    if (siteProfile.isNews) aggressiveness = 3;
-    if (siteProfile.isSPA && !siteProfile.hasVideoContent) aggressiveness = 4;
-    if (siteProfile.isDesktop && !siteProfile.hasHeavyAnimations) aggressiveness = 5;
+/* MAXIMUM PERFORMANCE OPTIMIZATIONS */
+* {
+    scroll-behavior: auto !important;
+}
 
-    const baseDuration = Math.max(0.01, 0.2 / aggressiveness);
-    const hoverDuration = Math.max(0.005, 0.1 / aggressiveness);
+/* ULTRA-FAST INTERACTIONS */
+button,input,select,textarea,a,[onclick],[role="button"] {
+    animation-duration: 0.001s !important;
+    transition-duration: 0.001s !important;
+}
 
-    let css = `
-    /* HYPER-PERFORMANCE MODE - LEVEL ${aggressiveness} */
-    *, *::before, *::after {
-        /* Ultra-fast animations */
-        -webkit-animation-duration: ${baseDuration}s !important;
-        -moz-animation-duration: ${baseDuration}s !important;
-        -ms-animation-duration: ${baseDuration}s !important;
-        -o-animation-duration: ${baseDuration}s !important;
-        animation-duration: ${baseDuration}s !important;
+/* REMOVE ALL EXPENSIVE EFFECTS */
+* {
+    background-attachment: scroll !important;
+}
 
-        /* Ultra-fast transitions */
-        -webkit-transition-duration: ${baseDuration}s !important;
-        -moz-transition-duration: ${baseDuration}s !important;
-        -ms-transition-duration: ${baseDuration}s !important;
-        -o-transition-duration: ${baseDuration}s !important;
-        transition-duration: ${baseDuration}s !important;
+/* HYPER-SPEED TEXT RENDERING */
+* {
+    text-rendering: optimizeSpeed !important;
+    -webkit-font-smoothing: subpixel-antialiased !important;
+    -moz-osx-font-smoothing: auto !important;
+    font-smooth: never !important;
+}
 
-        /* Zero delays */
-        -webkit-animation-delay: 0s !important;
-        -moz-animation-delay: 0s !important;
-        -ms-animation-delay: 0s !important;
-        -o-animation-delay: 0s !important;
-        animation-delay: 0s !important;
+/* INSTANT SCROLL */
+html,body {
+    scroll-behavior: auto !important;
+    -webkit-overflow-scrolling: auto !important;
+    overflow-anchor: none !important;
+}
 
-        -webkit-transition-delay: 0s !important;
-        -moz-transition-delay: 0s !important;
-        -ms-transition-delay: 0s !important;
-        -o-transition-delay: 0s !important;
-        transition-delay: 0s !important;
+/* DISABLE SMOOTH SCROLLING EVERYWHERE */
+[style*="scroll-behavior"],[style*="smooth"] {
+    scroll-behavior: auto !important;
+}
 
-        /* Performance optimizations */
-        will-change: auto !important;
-        contain: layout style paint !important;
-        scroll-behavior: auto !important;
+/* MAXIMUM IMAGE PERFORMANCE */
+img,picture,video,canvas,svg {
+    image-rendering: optimizeSpeed !important;
+    image-rendering: pixelated !important;
+    image-rendering: -moz-crisp-edges !important;
+    image-rendering: -webkit-optimize-contrast !important;
+}
 
-        /* GPU acceleration control */
-        -webkit-transform: translateZ(0) !important;
-        transform: translateZ(0) !important;
+/* INSTANT HOVER STATES */
+:hover {
+    transition: none !important;
+    animation: none !important;
+}
 
-        /* Text rendering optimization */
-        text-rendering: optimizeSpeed !important;
-        -webkit-font-smoothing: subpixel-antialiased !important;
+/* REMOVE SELECTION DELAYS */
+* {
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: auto !important;
+    -moz-user-select: auto !important;
+    -ms-user-select: auto !important;
+    user-select: auto !important;
+}
+`;
 
-        /* Remove expensive effects */
-        ${aggressiveness >= 3 ? `
-        filter: none !important;
-        backdrop-filter: none !important;
-        box-shadow: none !important;
-        text-shadow: none !important;
-        ` : ''}
+// ========== INSTANT CSS INJECTION (MULTIPLE METHODS) ==========
+const INSTANT_CSS = {
+    inject() {
+        // Method 1: GM_addStyle (fastest for userscripts)
+        BULLETPROOF.safe(() => {
+            if (typeof GM_addStyle === 'function') GM_addStyle(HYPER_CSS);
+        });
 
-        /* Disable transform-style for performance */
-        -webkit-transform-style: flat !important;
-        -moz-transform-style: flat !important;
-        -ms-transform-style: flat !important;
-        transform-style: flat !important;
+        // Method 2: Direct style injection
+        BULLETPROOF.safe(() => {
+            const style = document.createElement('style');
+            style.id = 'dna-insane-speed';
+            style.textContent = HYPER_CSS;
+            (document.head || document.documentElement || document.body)?.appendChild(style);
+        });
+
+        // Method 3: Observer for early DOM
+        BULLETPROOF.safe(() => {
+            if (!document.head && !document.documentElement) {
+                const observer = new MutationObserver(() => {
+                    if (document.head || document.documentElement) {
+                        const style = document.createElement('style');
+                        style.textContent = HYPER_CSS;
+                        (document.head || document.documentElement).appendChild(style);
+                        observer.disconnect();
+                    }
+                });
+                observer.observe(document, { childList: true, subtree: true });
+            }
+        });
     }
-
-    /* Hyper-fast interactive states */
-    :hover, :focus, :active {
-        -webkit-transition-duration: ${hoverDuration}s !important;
-        -moz-transition-duration: ${hoverDuration}s !important;
-        -ms-transition-duration: ${hoverDuration}s !important;
-        -o-transition-duration: ${hoverDuration}s !important;
-        transition-duration: ${hoverDuration}s !important;
-    }
-
-    /* Optimize common UI elements */
-    button, input, select, textarea, a {
-        transition-duration: ${hoverDuration}s !important;
-    }
-
-    /* Scroll optimization */
-    html, body {
-        scroll-behavior: auto !important;
-        -webkit-overflow-scrolling: auto !important;
-    }
-
-    /* Image optimization */
-    img {
-        image-rendering: optimizeSpeed !important;
-        ${aggressiveness >= 4 ? 'image-rendering: pixelated !important;' : ''}
-    }
-    `;
-
-    // Site-specific ultra-optimizations
-    if (siteProfile.isEcommerce) {
-        css += `
-        /* E-commerce hyper-optimizations */
-        .product-card, .item-card, .listing-item {
-            transition-duration: 0.01s !important;
-            contain: strict !important;
-        }
-
-        .carousel, .slider, .banner {
-            animation-duration: 0.05s !important;
-        }
-
-        /* Product image optimization */
-        .product-image, .item-image {
-            image-rendering: optimizeSpeed !important;
-            transition: none !important;
-        }
-        `;
-    }
-
-    if (siteProfile.isNews) {
-        css += `
-        /* News site optimizations */
-        .article-item, .news-card, .post-preview {
-            transition: none !important;
-            animation: none !important;
-        }
-
-        /* Reading optimization */
-        p, article, .content {
-            text-rendering: optimizeSpeed !important;
-        }
-        `;
-    }
-
-    if (siteProfile.isSocial) {
-        css += `
-        /* Social media optimizations */
-        .feed-item, .post, .tweet, .story {
-            animation-duration: 0.01s !important;
-            transition-duration: 0.01s !important;
-        }
-
-        .like-animation, .reaction-animation {
-            animation-duration: 0.02s !important;
-        }
-        `;
-    }
-
-    return css;
 };
 
-// ========== Advanced Animation System Override ==========
-const hyperOptimizeAnimations = () => {
-    // Override CSS animations at the engine level
-    SafeExecution.execute(() => {
-        const styleSheet = document.createElement('style');
-        styleSheet.textContent = createHyperPerformanceCSS();
-        (document.head || document.documentElement).appendChild(styleSheet);
-    }, 'injectHyperCSS');
+// ========== INSANE ANIMATION SYSTEM OVERRIDE ==========
+const INSANE_ANIMATIONS = {
+    apply() {
+        // Override requestAnimationFrame to hyper-speed
+        BULLETPROOF.patch(window, 'requestAnimationFrame', (original, callback) => {
+            if (typeof callback !== 'function') return original(callback);
+            // 500fps - INSANE speed
+            return setTimeout(callback, 2);
+        });
 
-    // Override getComputedStyle for animation properties
-    if (window.getComputedStyle && !siteProfile.isVideo && !siteProfile.isGaming) {
-        SafeExecution.patchFunction(window, 'getComputedStyle', (original, element, pseudoElt) => {
-            const computedStyle = original(element, pseudoElt);
-            const hyperSpeed = siteProfile.isDesktop ? '0.01s' : '0.05s';
+        // Update cancelAnimationFrame
+        BULLETPROOF.set(window, 'cancelAnimationFrame', (id) => clearTimeout(id));
 
-            // Create a proxy to override animation-related properties
-            return new Proxy(computedStyle, {
-                get(target, prop) {
-                    if (prop === 'animationDuration' || prop === 'transitionDuration') {
-                        return hyperSpeed;
-                    }
-                    if (prop === 'animationDelay' || prop === 'transitionDelay') {
-                        return '0s';
-                    }
-                    return target[prop];
-                }
+        // Override setTimeout for micro-optimizations
+        BULLETPROOF.patch(window, 'setTimeout', (original, fn, delay, ...args) => {
+            if (typeof fn !== 'function') return original(fn, delay, ...args);
+            // Minimum 1ms delay - MAXIMUM SPEED
+            return original(fn, Math.max(delay || 0, 1), ...args);
+        });
+
+        // Override setInterval for performance
+        BULLETPROOF.patch(window, 'setInterval', (original, fn, delay, ...args) => {
+            if (typeof fn !== 'function') return original(fn, delay, ...args);
+            // Minimum 4ms interval for stability
+            return original(fn, Math.max(delay || 100, 4), ...args);
+        });
+
+        // Override Date.now for consistent timing
+        const startTime = Date.now();
+        let fakeTime = startTime;
+        BULLETPROOF.patch(Date, 'now', (original) => {
+            fakeTime += 16; // Simulate 60fps
+            return fakeTime;
+        });
+
+        // Override performance.now for ultra-smooth animations
+        if (window.performance && window.performance.now) {
+            let perfTime = performance.now();
+            BULLETPROOF.patch(window.performance, 'now', (original) => {
+                perfTime += 2; // 500fps simulation
+                return perfTime;
             });
-        }, ':getComputedStyle');
+        }
     }
 };
 
-// ========== Hyper-Aggressive jQuery Optimization ==========
-const hyperOptimizeJQuery = () => {
-    const optimizeJQueryInstance = (jq) => {
-        if (!jq || !jq.fn) return;
+// ========== INSANE JQUERY SPEED BOOST ==========
+const INSANE_JQUERY = {
+    optimize(jq) {
+        if (!jq?.fn) return;
 
-        // Override animation methods
-        const hyperSpeed = siteProfile.isDesktop ? 10 : 50;
-
-        SafeExecution.execute(() => {
-            // Speed settings
+        BULLETPROOF.safe(() => {
+            // Ultra-fast jQuery settings
             if (jq.fx) {
-                jq.fx.speeds = { slow: hyperSpeed * 2, fast: hyperSpeed / 2, _default: hyperSpeed };
-                if (!siteProfile.hasVideoContent && !siteProfile.isGaming) {
-                    jq.fx.off = true;
-                }
+                jq.fx.speeds = { slow: 1, fast: 1, _default: 1 };
+                jq.fx.interval = 1;
+                jq.fx.off = false; // Keep animations but make them instant
             }
 
-            // Override animate function
-            if (jq.fn.animate) {
-                const originalAnimate = jq.fn.animate;
-                jq.fn.animate = function(prop, speed, easing, callback) {
-                    // Preserve callbacks but hyper-speed animations
-                    const hyperCallback = () => {
-                        if (typeof callback === 'function') callback.call(this);
-                        else if (typeof easing === 'function') easing.call(this);
-                        else if (typeof speed === 'function') speed.call(this);
-                    };
+            // Override all animation methods for INSTANT execution
+            const animMethods = ['animate', 'fadeIn', 'fadeOut', 'fadeToggle', 'fadeTo',
+                               'slideUp', 'slideDown', 'slideToggle', 'show', 'hide', 'toggle'];
 
-                    if (siteProfile.isVideo || siteProfile.isGaming) {
-                        return originalAnimate.call(this, prop, Math.min(speed || 400, 100), easing, callback);
-                    }
-
-                    // Apply properties instantly but trigger callback
-                    this.css(prop);
-                    setTimeout(hyperCallback, 1);
-                    return this;
-                };
-            }
-
-            // Override other animation methods
-            ['fadeIn', 'fadeOut', 'slideUp', 'slideDown', 'show', 'hide'].forEach(method => {
+            animMethods.forEach(method => {
                 if (jq.fn[method]) {
-                    const originalMethod = jq.fn[method];
-                    jq.fn[method] = function(speed, callback) {
-                        if (siteProfile.isVideo || siteProfile.isGaming) {
-                            return originalMethod.call(this, hyperSpeed, callback);
+                    BULLETPROOF.patch(jq.fn, method, (original, ...args) => {
+                        // Extract callback from any position
+                        let callback = null;
+                        for (let arg of args) {
+                            if (typeof arg === 'function') {
+                                callback = arg;
+                                break;
+                            }
                         }
 
-                        // Instant execution with callback preservation
-                        const element = this;
-                        setTimeout(() => {
-                            if (method.includes('fade')) {
-                                element.css('opacity', method === 'fadeIn' ? 1 : 0);
-                            } else if (method.includes('slide')) {
-                                element.css('height', method === 'slideDown' ? 'auto' : 0);
-                            } else {
-                                element.css('display', method === 'show' ? 'block' : 'none');
-                            }
+                        // Apply changes instantly
+                        if (method === 'animate' && args[0]) {
+                            this.css(args[0]);
+                        } else if (method.includes('fade')) {
+                            this.css('opacity', method === 'fadeIn' ? 1 : 0);
+                        } else if (method.includes('slide')) {
+                            this.css('height', method === 'slideDown' ? 'auto' : 0);
+                        } else if (method === 'show') {
+                            this.css('display', 'block');
+                        } else if (method === 'hide') {
+                            this.css('display', 'none');
+                        }
 
-                            if (typeof speed === 'function') speed.call(this);
-                            else if (typeof callback === 'function') callback.call(this);
-                        }, 1);
+                        // Fire callback immediately
+                        if (callback) {
+                            setTimeout(() => callback.call(this[0] || this), 0);
+                        }
 
                         return this;
-                    };
+                    });
                 }
             });
-        }, 'optimizeJQuery');
-    };
 
-    // Apply to all jQuery instances
-    const checkAndOptimize = () => {
-        [window.jQuery, window.$, unsafeWindow?.jQuery, unsafeWindow?.$, window.wrappedJSObject?.jQuery].forEach(jq => {
-            if (jq) optimizeJQueryInstance(jq);
+            // Override jQuery's internal timer
+            if (jq.timers) {
+                jq.timers.length = 0; // Clear all timers
+            }
         });
-    };
+    },
 
-    checkAndOptimize();
-    window.addEventListener('load', checkAndOptimize, { once: true });
+    monitor() {
+        // Immediate check
+        [window.$, window.jQuery, unsafeWindow?.$, unsafeWindow?.jQuery].forEach(jq => {
+            if (jq) this.optimize(jq);
+        });
 
-    // Watch for jQuery loading
-    let jqueryCheckCount = 0;
-    const jqueryWatcher = setInterval(() => {
-        checkAndOptimize();
-        jqueryCheckCount++;
-        if (jqueryCheckCount > 20) clearInterval(jqueryWatcher); // Stop after 10 seconds
-    }, 500);
+        // Continuous monitoring for jQuery
+        let checks = 0;
+        const interval = setInterval(() => {
+            [window.$, window.jQuery, unsafeWindow?.$, unsafeWindow?.jQuery].forEach(jq => {
+                if (jq) this.optimize(jq);
+            });
+
+            if (++checks > 50) clearInterval(interval); // Stop after 5 seconds
+        }, 100);
+    }
 };
 
-// ========== Hyper requestAnimationFrame System ==========
-const hyperOptimizeRAF = () => {
-    if (siteProfile.isVideo || siteProfile.isGaming) return; // Preserve for media sites
+// ========== INSANE EVENT SYSTEM OPTIMIZATION ==========
+const INSANE_EVENTS = {
+    apply() {
+        // Make ALL events passive for maximum performance
+        if (EventTarget?.prototype?.addEventListener) {
+            BULLETPROOF.patch(EventTarget.prototype, 'addEventListener', (original, type, listener, options) => {
+                if (typeof listener !== 'function') return original.call(this, type, listener, options);
 
-    SafeExecution.patchFunction(window, 'requestAnimationFrame', (original, callback) => {
-        if (typeof callback !== 'function') return original(callback);
+                // Force passive for performance events
+                const forcePassive = ['scroll', 'wheel', 'touchstart', 'touchmove', 'touchend', 'mousemove', 'pointermove'];
 
-        // Hyper-fast execution based on device capability
-        const delay = siteProfile.isDesktop ? 4 : 8; // 250fps or 125fps
-        return setTimeout(callback, delay);
-    }, ':RAF');
+                if (forcePassive.includes(type)) {
+                    const passiveOptions = typeof options === 'object' ?
+                        { ...options, passive: true } :
+                        { passive: true, capture: !!options };
+                    return original.call(this, type, listener, passiveOptions);
+                }
 
-    // Also optimize cancelAnimationFrame
-    SafeExecution.patchFunction(window, 'cancelAnimationFrame', (original, id) => {
-        clearTimeout(id);
-        return original(id);
-    }, ':cancelRAF');
-};
-
-// ========== Intelligent Timer Optimization ==========
-const hyperOptimizeTimers = () => {
-    let timerStats = { fast: 0, medium: 0, slow: 0, optimized: 0 };
-
-    SafeExecution.patchFunction(window, 'setTimeout', (original, fn, delay, ...args) => {
-        if (typeof fn !== 'function') return original(fn, delay, ...args);
-
-        // Analyze timer patterns
-        if (delay <= 16) timerStats.fast++;
-        else if (delay <= 100) timerStats.medium++;
-        else timerStats.slow++;
-
-        let optimizedDelay = delay;
-
-        // Intelligent optimization based on site profile
-        if (siteProfile.isEcommerce && delay < 50) {
-            optimizedDelay = Math.max(delay, 8); // Minimum for smooth UX
-            timerStats.optimized++;
-        } else if (siteProfile.isNews && delay < 100) {
-            optimizedDelay = Math.max(delay, 4); // Ultra-fast for reading sites
-            timerStats.optimized++;
-        } else if (!siteProfile.hasVideoContent && delay < 4) {
-            optimizedDelay = 4; // Prevent excessive micro-delays
-            timerStats.optimized++;
+                return original.call(this, type, listener, options);
+            });
         }
 
-        return original(fn, optimizedDelay, ...args);
-    }, ':setTimeout');
-
-    SafeExecution.patchFunction(window, 'setInterval', (original, fn, delay, ...args) => {
-        if (typeof fn !== 'function') return original(fn, delay, ...args);
-
-        let optimizedDelay = delay;
-
-        // Optimize intervals more aggressively
-        if (!siteProfile.hasVideoContent && !siteProfile.isGaming) {
-            if (delay < 16) optimizedDelay = 16; // 60fps max
-            else if (delay < 100) optimizedDelay = Math.min(delay * 1.5, 100); // Slow down excessive intervals
-        }
-
-        return original(fn, optimizedDelay, ...args);
-    }, ':setInterval');
-
-    // Log optimization stats after 30 seconds
-    setTimeout(() => {
-        if (timerStats.optimized > 0) {
-            console.debug('DNA Shield: Timer optimizations:', timerStats);
-        }
-    }, 30000);
-};
-
-// ========== Advanced Event System Optimization ==========
-const hyperOptimizeEvents = () => {
-    const eventOptimizations = new Map();
-
-    // Event throttling for performance-heavy events
-    const createThrottledHandler = (originalHandler, throttleMs) => {
-        let throttled = false;
-        let lastArgs = null;
-
-        return function(...args) {
-            lastArgs = args;
-            if (!throttled) {
-                throttled = true;
-                setTimeout(() => {
-                    throttled = false;
-                    if (lastArgs) {
-                        originalHandler.apply(this, lastArgs);
-                        lastArgs = null;
+        // Override scroll events for instant response
+        BULLETPROOF.patch(window, 'addEventListener', (original, type, listener, options) => {
+            if (type === 'scroll' && typeof listener === 'function') {
+                // Throttle scroll events to 500fps
+                let lastCall = 0;
+                const throttledListener = (e) => {
+                    const now = performance.now();
+                    if (now - lastCall > 2) {
+                        lastCall = now;
+                        listener(e);
                     }
-                }, throttleMs);
+                };
+                return original.call(this, type, throttledListener, options);
             }
-        };
-    };
-
-    // Override addEventListener for performance events
-    SafeExecution.patchFunction(EventTarget.prototype, 'addEventListener', (original, type, listener, options) => {
-        if (typeof listener !== 'function') return original(type, listener, options);
-
-        let optimizedListener = listener;
-        const throttleMs = siteProfile.isDesktop ? 8 : 16;
-
-        // Throttle performance-heavy events
-        if (['scroll', 'resize', 'mousemove', 'pointermove', 'touchmove'].includes(type)) {
-            optimizedListener = createThrottledHandler(listener, throttleMs);
-            eventOptimizations.set(listener, optimizedListener);
-        }
-
-        // Passive events for better performance
-        if (['scroll', 'wheel', 'touchstart', 'touchmove'].includes(type)) {
-            if (typeof options === 'object') {
-                options.passive = true;
-            } else {
-                options = { passive: true, capture: !!options };
-            }
-        }
-
-        return original(type, optimizedListener, options);
-    }, ':addEventListener');
-
-    // Handle removeEventListener
-    SafeExecution.patchFunction(EventTarget.prototype, 'removeEventListener', (original, type, listener, options) => {
-        const optimizedListener = eventOptimizations.get(listener) || listener;
-        eventOptimizations.delete(listener);
-        return original(type, optimizedListener, options);
-    }, ':removeEventListener');
+            return original.call(this, type, listener, options);
+        });
+    }
 };
 
-// ========== Advanced Focus and Visibility Management ==========
-const hyperOptimizeFocus = () => {
-    // Aggressive visibility optimization (safe for most sites)
-    if (!siteProfile.hasVideoContent) {
-        SafeExecution.defineProperty(document, 'hidden', {
-            get: () => false,
-            enumerable: true
-        });
+// ========== INSANE VISIBILITY OVERRIDE ==========
+const INSANE_VISIBILITY = {
+    apply() {
+        // Force page to always be "visible" for maximum performance
+        BULLETPROOF.set(document, 'hidden', false);
+        BULLETPROOF.set(document, 'visibilityState', 'visible');
 
-        SafeExecution.defineProperty(document, 'visibilityState', {
-            get: () => 'visible',
-            enumerable: true
-        });
+        // Override hasFocus
+        if ('hasFocus' in document) {
+            BULLETPROOF.set(document, 'hasFocus', () => true);
+        }
 
-        // Block visibility change events
-        SafeExecution.execute(() => {
-            ['visibilitychange', 'webkitvisibilitychange', 'blur', 'pagehide'].forEach(eventType => {
+        // Block visibility events
+        const blockEvents = ['visibilitychange', 'webkitvisibilitychange', 'mozvisibilitychange', 'blur', 'focus'];
+        blockEvents.forEach(eventType => {
+            BULLETPROOF.safe(() => {
                 document.addEventListener(eventType, (e) => {
                     e.stopImmediatePropagation();
-                }, true);
+                }, { capture: true, passive: false });
             });
-        }, 'blockVisibilityEvents');
-    }
-
-    // Optimize hasFocus
-    SafeExecution.defineProperty(document, 'hasFocus', {
-        value: () => true,
-        writable: false
-    });
-};
-
-// ========== Performance Monitoring and Auto-Tuning ==========
-const setupPerformanceMonitoring = () => {
-    let performanceMetrics = {
-        cssOptimized: true,
-        jqueryOptimized: true,
-        rafOptimized: !siteProfile.isVideo && !siteProfile.isGaming,
-        timersOptimized: true,
-        eventsOptimized: true,
-        focusOptimized: !siteProfile.hasVideoContent,
-        aggressivenessLevel: siteProfile.isDesktop ? (siteProfile.isNews ? 5 : 3) : 2
-    };
-
-    // Auto-tune performance based on site behavior
-    let frameCount = 0;
-    let lastFrameTime = performance.now();
-
-    const monitorPerformance = () => {
-        frameCount++;
-        const currentTime = performance.now();
-        const deltaTime = currentTime - lastFrameTime;
-
-        if (frameCount % 60 === 0) { // Check every 60 frames
-            const fps = 1000 / (deltaTime / 60);
-
-            if (fps < 30 && performanceMetrics.aggressivenessLevel < 5) {
-                // Increase aggressiveness if performance is poor
-                performanceMetrics.aggressivenessLevel++;
-                console.debug('DNA Shield: Increasing performance aggressiveness to level', performanceMetrics.aggressivenessLevel);
-            }
-        }
-
-        lastFrameTime = currentTime;
-        if (frameCount < 600) requestAnimationFrame(monitorPerformance); // Monitor for 10 seconds
-    };
-
-    if (!siteProfile.isVideo && !siteProfile.isGaming) {
-        requestAnimationFrame(monitorPerformance);
-    }
-
-    // Log final performance report
-    setTimeout(() => {
-        console.info('DNA Shield Turbo: Performance profile active', {
-            site: {
-                type: siteProfile.isEcommerce ? 'E-commerce' :
-                      siteProfile.isNews ? 'News' :
-                      siteProfile.isSocial ? 'Social' : 'General',
-                framework: siteProfile.isReactApp ? 'React' :
-                          siteProfile.isVueApp ? 'Vue' :
-                          siteProfile.isAngularApp ? 'Angular' : 'Vanilla',
-                device: siteProfile.isDesktop ? 'Desktop' : siteProfile.isTablet ? 'Tablet' : 'Mobile'
-            },
-            optimizations: performanceMetrics
         });
-    }, 5000);
-};
 
-// ========== Initialization System ==========
-const initializeHyperPerformance = () => {
-    const initSteps = [
-        () => hyperOptimizeAnimations(),
-        () => hyperOptimizeJQuery(),
-        () => hyperOptimizeRAF(),
-        () => hyperOptimizeTimers(),
-        () => hyperOptimizeEvents(),
-        () => hyperOptimizeFocus(),
-        () => setupPerformanceMonitoring()
-    ];
-
-    // Execute immediately for maximum performance
-    initSteps.forEach((step, index) => {
-        setTimeout(step, index * 10); // Stagger by 10ms each
-    });
-
-    // Additional optimization after DOM is ready
-    const domReadyOptimizations = () => {
-        // Re-apply CSS optimizations for dynamic content
-        SafeExecution.execute(() => {
-            const newStyle = document.createElement('style');
-            newStyle.textContent = createHyperPerformanceCSS();
-            document.head.appendChild(newStyle);
-        }, 'reapplyCSS');
-    };
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', domReadyOptimizations, { once: true });
-    } else {
-        domReadyOptimizations();
-    }
-};
-
-// ========== Safety and Cleanup ==========
-const setupSafetyNet = () => {
-    // Monitor for conflicts
-    let conflictCount = 0;
-    const originalConsoleError = console.error;
-
-    console.error = function(...args) {
-        const message = args.join(' ');
-        if (message.includes('DNA Shield') || message.includes('animation') || message.includes('transition')) {
-            conflictCount++;
-            if (conflictCount > 5) {
-                console.warn('DNA Shield: Potential conflicts detected, entering ultra-safe mode');
-                SafeExecution.maxErrors = 1; // Become more conservative
+        // Force window focus
+        BULLETPROOF.set(window, 'document', new Proxy(document, {
+            get(target, prop) {
+                if (prop === 'hidden') return false;
+                if (prop === 'visibilityState') return 'visible';
+                if (prop === 'hasFocus') return () => true;
+                return target[prop];
             }
-        }
-        return originalConsoleError.apply(console, args);
-    };
-
-    // Cleanup on page unload
-    window.addEventListener('beforeunload', () => {
-        SafeExecution.execute(() => {
-            document.querySelectorAll('style[id*="dna-shield"]').forEach(style => style.remove());
-        }, 'cleanup');
-    }, { once: true });
-
-    // Emergency shutdown if too many errors
-    if (SafeExecution.errors >= SafeExecution.maxErrors) {
-        console.warn('DNA Shield: Emergency safe mode activated');
-        return;
+        }));
     }
 };
 
-// ========== Main Execution ==========
-setupSafetyNet();
-initializeHyperPerformance();
+// ========== INSANE CSS ANIMATIONS OVERRIDE ==========
+const INSANE_CSS_OVERRIDE = {
+    apply() {
+        // Override getComputedStyle for animation properties
+        if (window.getComputedStyle) {
+            BULLETPROOF.patch(window, 'getComputedStyle', (original, element, pseudoElt) => {
+                const style = original(element, pseudoElt);
+
+                return new Proxy(style, {
+                    get(target, prop) {
+                        // Force ultra-fast animations
+                        if (prop === 'animationDuration' || prop === 'transitionDuration') {
+                            return '0.001s';
+                        }
+                        if (prop === 'animationDelay' || prop === 'transitionDelay') {
+                            return '0s';
+                        }
+                        return target[prop];
+                    }
+                });
+            });
+        }
+
+        // Override CSS.supports to disable expensive features
+        if (window.CSS && window.CSS.supports) {
+            BULLETPROOF.patch(window.CSS, 'supports', (original, ...args) => {
+                const property = args[0];
+                // Disable expensive CSS features
+                if (typeof property === 'string') {
+                    if (property.includes('filter') ||
+                        property.includes('backdrop-filter') ||
+                        property.includes('box-shadow') ||
+                        property.includes('text-shadow')) {
+                        return false;
+                    }
+                }
+                return original(...args);
+            });
+        }
+    }
+};
+
+// ========== INSANE WEB APIS OVERRIDE ==========
+const INSANE_APIS = {
+    apply() {
+        // Override Intersection Observer for instant callbacks
+        if (window.IntersectionObserver) {
+            BULLETPROOF.patch(window, 'IntersectionObserver', (original, callback, options) => {
+                const fastCallback = (entries, observer) => {
+                    // Fire callback immediately
+                    setTimeout(() => callback(entries, observer), 0);
+                };
+                return new original(fastCallback, { ...options, rootMargin: '1000px' });
+            });
+        }
+
+        // Override MutationObserver for instant DOM monitoring
+        if (window.MutationObserver) {
+            BULLETPROOF.patch(window, 'MutationObserver', (original, callback) => {
+                const fastCallback = (mutations, observer) => {
+                    setTimeout(() => callback(mutations, observer), 0);
+                };
+                return new original(fastCallback);
+            });
+        }
+
+        // Override ResizeObserver for instant resize handling
+        if (window.ResizeObserver) {
+            BULLETPROOF.patch(window, 'ResizeObserver', (original, callback) => {
+                const fastCallback = (entries, observer) => {
+                    setTimeout(() => callback(entries, observer), 0);
+                };
+                return new original(fastCallback);
+            });
+        }
+    }
+};
+
+// ========== INSTANT EXECUTION SYSTEM ==========
+const INSANE_INIT = {
+    run() {
+        // Phase 1: Instant CSS (0ms)
+        INSTANT_CSS.inject();
+
+        // Phase 2: Core overrides (immediate)
+        INSANE_ANIMATIONS.apply();
+        INSANE_VISIBILITY.apply();
+        INSANE_CSS_OVERRIDE.apply();
+        INSANE_EVENTS.apply();
+        INSANE_APIS.apply();
+
+        // Phase 3: jQuery monitoring (immediate)
+        INSANE_JQUERY.monitor();
+
+        // Phase 4: Continuous optimization
+        const continuousOpt = () => {
+            INSTANT_CSS.inject(); // Re-inject CSS
+            INSANE_JQUERY.monitor(); // Re-check jQuery
+        };
+
+        // Run optimizations every 100ms for 2 seconds
+        let optCount = 0;
+        const optInterval = setInterval(() => {
+            continuousOpt();
+            if (++optCount > 20) clearInterval(optInterval);
+        }, 100);
+
+        // Final report
+        setTimeout(() => {
+            console.info('🚀💨 DNA SHIELD: INSANE SPEED MODE ACTIVE - ZERO COMPROMISE');
+        }, 500);
+
+        // Cleanup
+        BULLETPROOF.safe(() => {
+            window.addEventListener('beforeunload', () => {
+                document.getElementById('dna-insane-speed')?.remove();
+            }, { once: true, passive: true });
+        });
+    }
+};
+
+// ========== EXECUTE IMMEDIATELY ==========
+INSANE_INIT.run();
 
 })();
-// ========== DNA Shield End ==========
