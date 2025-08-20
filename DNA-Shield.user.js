@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name		DNA Shield
 // @namespace	DNA Shield
-// @version		11.1
+// @version		12.1
 // @author		Last Roze
 // @description	Dominion With Domination
 // @copyright	©2021 - 2025 // Yoga Budiman
@@ -39,476 +39,413 @@
 // @grant		window.focus
 // @grant		window.onurlchange
 // ==/UserScript==
+/* global $, jQuery */
 
 (() => {
-'use strict';
+  'use strict';
+  if (window.__dnaShieldPatched) return; // idempotent
+  window.__dnaShieldPatched = true;
 
-// ========== BULLETPROOF SAFETY CORE ==========
-const BULLETPROOF = {
-    // Ultra-safe execution - never throws
-    safe(fn, fallback = () => {}) {
-        try { return fn() || fallback(); } catch { return fallback(); }
-    },
+  /* ---------------------------------------------------------
+   * 1) CSS — aggressive but safe + UI acceleration
+   * --------------------------------------------------------- */
+  const CSS = `
+    :root {
+      --dna-tran: 0.1ms;
+      --dna-anim: 0.1ms;
+      --dna-scroll: auto;
+      --dna-hover: 0.1ms;
+      --dna-tooltip: 0.1ms;
+    }
+    html { scroll-behavior: var(--dna-scroll) !important; }
 
-    // Check if property can be modified
-    canSet(obj, prop) {
-        return this.safe(() => {
-            if (!obj || typeof obj !== 'object') return false;
-            const desc = Object.getOwnPropertyDescriptor(obj, prop);
-            return !desc || desc.writable !== false || desc.set || desc.configurable !== false;
-        });
-    },
+    /* Rendering tweaks (conservative) */
+    html, body { text-rendering: optimizeSpeed !important; }
+    body { -webkit-font-smoothing: antialiased !important; }
 
-    // Safe property override
-    set(obj, prop, value) {
-        return this.safe(() => {
-            if (!this.canSet(obj, prop)) return false;
-            obj[prop] = value;
-            return true;
-        });
-    },
+    /* Short transitions everywhere (safe set of properties) */
+    * {
+      transition-duration: var(--dna-tran) !important;
+      transition-delay: 0ms !important;
+      transition-property: color, background-color, opacity, transform,
+                           height, width, left, top, right, bottom, box-shadow, border-color !important;
+    }
 
-    // Safe function patching
-    patch(obj, method, impl) {
-        return this.safe(() => {
-            if (!obj[method] || typeof obj[method] !== 'function') return false;
-            if (!this.canSet(obj, method)) return false;
+    /* Fast hover effects */
+    *:hover, *:focus, *:active {
+      transition-duration: var(--dna-hover) !important;
+    }
 
-            const original = obj[method];
-            obj[method] = function(...args) {
-                try { return impl.call(this, original.bind(this), ...args); }
-                catch { return original.apply(this, args); }
+    /* Shortened animations on common interactive elements */
+    button, a, [role="button"], input, select, textarea,
+    [data-anim], .anim, .transition, [class*="anim"], [class*="transition"],
+    .tooltip, [data-tooltip], [title], .popover, .dropdown, .modal {
+      animation-duration: var(--dna-anim) !important;
+      animation-delay: 0ms !important;
+      transition-duration: var(--dna-hover) !important;
+    }
+
+    /* Common tooltip/popover classes */
+    .tooltip, [data-tooltip], [data-bs-toggle="tooltip"], [data-toggle="tooltip"],
+    .popover, [data-popover], [data-bs-toggle="popover"], [data-toggle="popover"],
+    .tippy-tooltip, .ui-tooltip, .hint--top, .hint--bottom, .hint--left, .hint--right {
+      transition-duration: var(--dna-tooltip) !important;
+      animation-duration: var(--dna-tooltip) !important;
+    }
+
+    /* Dropdown menus */
+    .dropdown-menu, .select2-dropdown, .ui-menu, .context-menu,
+    [role="menu"], [role="listbox"], [class*="dropdown"], [class*="menu"] {
+      transition-duration: var(--dna-hover) !important;
+      animation-duration: var(--dna-hover) !important;
+    }
+
+    /* Modal/dialog acceleration */
+    .modal, .dialog, [role="dialog"], .overlay, .backdrop,
+    .ui-dialog, .fancybox, .lightbox, [class*="modal"], [class*="dialog"] {
+      transition-duration: 100ms !important;
+      animation-duration: 100ms !important;
+    }
+
+    /* Faster rendering only for lazy/offscreen images (avoid visible pixelation up top) */
+    img[loading="lazy"][decoding="async"] { image-rendering: optimizeSpeed !important; }
+
+    /* Accordion/collapsible elements */
+    .accordion, .collapse, .collapsible, [data-toggle="collapse"],
+    [class*="accordion"], [class*="collapse"], [class*="expand"] {
+      transition-duration: 120ms !important;
+    }
+
+    /* Progress bars and sliders */
+    .progress, .slider, input[type="range"], .ui-slider, .noui-slider,
+    [role="progressbar"], [role="slider"] {
+      transition-duration: var(--dna-hover) !important;
+    }
+  `;
+
+  if (typeof GM_addStyle === 'function') {
+    GM_addStyle(CSS);
+  } else {
+    const s = document.createElement('style');
+    s.textContent = CSS;
+    (document.head || document.documentElement).appendChild(s);
+  }
+
+  /* ---------------------------------------------------------
+   * 2) JS — safe acceleration rules
+   * --------------------------------------------------------- */
+  const SCALE = 0.2;
+  const MIN_AFTER_SCALE = 4;
+  const MAX_AFTER_SCALE = 150;
+  const LONG_TIMER_GUARD = 30000;
+
+  function fastDelay(original) {
+    const d = Number(original);
+    if (!isFinite(d)) return original;
+    if (d <= 4) return d;
+    if (d >= LONG_TIMER_GUARD) return d;
+    const scaled = Math.max(MIN_AFTER_SCALE, d * SCALE);
+    return Math.min(scaled, MAX_AFTER_SCALE);
+  }
+
+  // Patch setTimeout safely
+  const _setTimeout = window.setTimeout;
+  Object.defineProperty(window, 'setTimeout', {
+    configurable: true,
+    writable: true,
+    value: function(fn, delay, ...args) {
+      if (typeof fn !== 'function') return _setTimeout(fn, delay, ...args);
+      return _setTimeout(fn, fastDelay(delay), ...args);
+    }
+  });
+
+  // Patch setInterval safely
+  const _setInterval = window.setInterval;
+  Object.defineProperty(window, 'setInterval', {
+    configurable: true,
+    writable: true,
+    value: function(fn, delay, ...args) {
+      if (typeof fn !== 'function') return _setInterval(fn, delay, ...args);
+      return _setInterval(fn, fastDelay(delay), ...args);
+    }
+  });
+
+  /* ---------------------------------------------------------
+   * 3) jQuery acceleration — safe patching
+   * --------------------------------------------------------- */
+  function patchJQuery() {
+    // Check if jQuery exists
+    const $ = window.jQuery || window.$;
+    if (!$ || typeof $.fn !== 'object') return;
+
+    // Patch jQuery.fx.speeds (global animation speeds)
+    if ($.fx && $.fx.speeds) {
+      $.fx.speeds.slow = 1;
+      $.fx.speeds.normal = 1;
+      $.fx.speeds.fast = 1;
+      $.fx.speeds._default = 1;
+    }
+
+    // Patch individual animation methods if they exist
+    const animMethods = ['animate', 'fadeIn', 'fadeOut', 'fadeToggle', 'slideUp', 'slideDown', 'slideToggle', 'show', 'hide', 'toggle'];
+
+    animMethods.forEach(method => {
+      if (typeof $.fn[method] === 'function') {
+        const original = $.fn[method];
+        $.fn[method] = function(speed, easing, callback) {
+          // Handle different argument patterns
+          let newSpeed = speed;
+
+          if (typeof speed === 'number') {
+            newSpeed = fastDelay(speed);
+          } else if (typeof speed === 'string') {
+            // Map string speeds to fast values
+            const speedMap = {
+              'slow': 1,
+              'normal': 1,
+              'fast': 1
             };
-            return true;
-        });
-    }
-};
+            newSpeed = speedMap[speed] || 1;
+          }
 
-// ========== INSANE SPEED CSS INJECTION ==========
-const HYPER_CSS = `
-/* INSANE SPEED MODE - ZERO COMPROMISE */
-*,*::before,*::after,*:hover,*:focus,*:active {
-    animation-duration: 0.001s !important;
-    animation-delay: 0s !important;
-    transition-duration: 0.001s !important;
-    transition-delay: 0s !important;
-    animation-fill-mode: forwards !important;
-    animation-play-state: running !important;
-}
-
-/* MAXIMUM PERFORMANCE OPTIMIZATIONS */
-* {
-    scroll-behavior: auto !important;
-}
-
-/* ULTRA-FAST INTERACTIONS */
-button,input,select,textarea,a,[onclick],[role="button"] {
-    animation-duration: 0.001s !important;
-    transition-duration: 0.001s !important;
-}
-
-/* REMOVE ALL EXPENSIVE EFFECTS */
-* {
-    background-attachment: scroll !important;
-}
-
-/* HYPER-SPEED TEXT RENDERING */
-* {
-    text-rendering: optimizeSpeed !important;
-    -webkit-font-smoothing: subpixel-antialiased !important;
-    -moz-osx-font-smoothing: auto !important;
-    font-smooth: never !important;
-}
-
-/* INSTANT SCROLL */
-html,body {
-    scroll-behavior: auto !important;
-    -webkit-overflow-scrolling: auto !important;
-    overflow-anchor: none !important;
-}
-
-/* DISABLE SMOOTH SCROLLING EVERYWHERE */
-[style*="scroll-behavior"],[style*="smooth"] {
-    scroll-behavior: auto !important;
-}
-
-/* MAXIMUM IMAGE PERFORMANCE */
-img,picture,video,canvas,svg {
-    image-rendering: optimizeSpeed !important;
-    image-rendering: pixelated !important;
-    image-rendering: -moz-crisp-edges !important;
-    image-rendering: -webkit-optimize-contrast !important;
-}
-
-/* INSTANT HOVER STATES */
-:hover {
-    transition: none !important;
-    animation: none !important;
-}
-
-/* REMOVE SELECTION DELAYS */
-* {
-    -webkit-touch-callout: none !important;
-    -webkit-user-select: auto !important;
-    -moz-user-select: auto !important;
-    -ms-user-select: auto !important;
-    user-select: auto !important;
-}
-`;
-
-// ========== INSTANT CSS INJECTION (MULTIPLE METHODS) ==========
-const INSTANT_CSS = {
-    inject() {
-        // Method 1: GM_addStyle (fastest for userscripts)
-        BULLETPROOF.safe(() => {
-            if (typeof GM_addStyle === 'function') GM_addStyle(HYPER_CSS);
-        });
-
-        // Method 2: Direct style injection
-        BULLETPROOF.safe(() => {
-            const style = document.createElement('style');
-            style.id = 'dna-insane-speed';
-            style.textContent = HYPER_CSS;
-            (document.head || document.documentElement || document.body)?.appendChild(style);
-        });
-
-        // Method 3: Observer for early DOM
-        BULLETPROOF.safe(() => {
-            if (!document.head && !document.documentElement) {
-                const observer = new MutationObserver(() => {
-                    if (document.head || document.documentElement) {
-                        const style = document.createElement('style');
-                        style.textContent = HYPER_CSS;
-                        (document.head || document.documentElement).appendChild(style);
-                        observer.disconnect();
-                    }
-                });
-                observer.observe(document, { childList: true, subtree: true });
-            }
-        });
-    }
-};
-
-// ========== INSANE ANIMATION SYSTEM OVERRIDE ==========
-const INSANE_ANIMATIONS = {
-    apply() {
-        // Override requestAnimationFrame to hyper-speed
-        BULLETPROOF.patch(window, 'requestAnimationFrame', (original, callback) => {
-            if (typeof callback !== 'function') return original(callback);
-            // 500fps - INSANE speed
-            return setTimeout(callback, 2);
-        });
-
-        // Update cancelAnimationFrame
-        BULLETPROOF.set(window, 'cancelAnimationFrame', (id) => clearTimeout(id));
-
-        // Override setTimeout for micro-optimizations
-        BULLETPROOF.patch(window, 'setTimeout', (original, fn, delay, ...args) => {
-            if (typeof fn !== 'function') return original(fn, delay, ...args);
-            // Minimum 1ms delay - MAXIMUM SPEED
-            return original(fn, Math.max(delay || 0, 1), ...args);
-        });
-
-        // Override setInterval for performance
-        BULLETPROOF.patch(window, 'setInterval', (original, fn, delay, ...args) => {
-            if (typeof fn !== 'function') return original(fn, delay, ...args);
-            // Minimum 4ms interval for stability
-            return original(fn, Math.max(delay || 100, 4), ...args);
-        });
-
-        // Override Date.now for consistent timing
-        const startTime = Date.now();
-        let fakeTime = startTime;
-        BULLETPROOF.patch(Date, 'now', (original) => {
-            fakeTime += 16; // Simulate 60fps
-            return fakeTime;
-        });
-
-        // Override performance.now for ultra-smooth animations
-        if (window.performance && window.performance.now) {
-            let perfTime = performance.now();
-            BULLETPROOF.patch(window.performance, 'now', (original) => {
-                perfTime += 2; // 500fps simulation
-                return perfTime;
-            });
-        }
-    }
-};
-
-// ========== INSANE JQUERY SPEED BOOST ==========
-const INSANE_JQUERY = {
-    optimize(jq) {
-        if (!jq?.fn) return;
-
-        BULLETPROOF.safe(() => {
-            // Ultra-fast jQuery settings
-            if (jq.fx) {
-                jq.fx.speeds = { slow: 1, fast: 1, _default: 1 };
-                jq.fx.interval = 1;
-                jq.fx.off = false; // Keep animations but make them instant
-            }
-
-            // Override all animation methods for INSTANT execution
-            const animMethods = ['animate', 'fadeIn', 'fadeOut', 'fadeToggle', 'fadeTo',
-                               'slideUp', 'slideDown', 'slideToggle', 'show', 'hide', 'toggle'];
-
-            animMethods.forEach(method => {
-                if (jq.fn[method]) {
-                    BULLETPROOF.patch(jq.fn, method, (original, ...args) => {
-                        // Extract callback from any position
-                        let callback = null;
-                        for (let arg of args) {
-                            if (typeof arg === 'function') {
-                                callback = arg;
-                                break;
-                            }
-                        }
-
-                        // Apply changes instantly
-                        if (method === 'animate' && args[0]) {
-                            this.css(args[0]);
-                        } else if (method.includes('fade')) {
-                            this.css('opacity', method === 'fadeIn' ? 1 : 0);
-                        } else if (method.includes('slide')) {
-                            this.css('height', method === 'slideDown' ? 'auto' : 0);
-                        } else if (method === 'show') {
-                            this.css('display', 'block');
-                        } else if (method === 'hide') {
-                            this.css('display', 'none');
-                        }
-
-                        // Fire callback immediately
-                        if (callback) {
-                            setTimeout(() => callback.call(this[0] || this), 0);
-                        }
-
-                        return this;
-                    });
-                }
-            });
-
-            // Override jQuery's internal timer
-            if (jq.timers) {
-                jq.timers.length = 0; // Clear all timers
-            }
-        });
-    },
-
-    monitor() {
-        // Immediate check
-        [window.$, window.jQuery, unsafeWindow?.$, unsafeWindow?.jQuery].forEach(jq => {
-            if (jq) this.optimize(jq);
-        });
-
-        // Continuous monitoring for jQuery
-        let checks = 0;
-        const interval = setInterval(() => {
-            [window.$, window.jQuery, unsafeWindow?.$, unsafeWindow?.jQuery].forEach(jq => {
-                if (jq) this.optimize(jq);
-            });
-
-            if (++checks > 50) clearInterval(interval); // Stop after 5 seconds
-        }, 100);
-    }
-};
-
-// ========== INSANE EVENT SYSTEM OPTIMIZATION ==========
-const INSANE_EVENTS = {
-    apply() {
-        // Make ALL events passive for maximum performance
-        if (EventTarget?.prototype?.addEventListener) {
-            BULLETPROOF.patch(EventTarget.prototype, 'addEventListener', (original, type, listener, options) => {
-                if (typeof listener !== 'function') return original.call(this, type, listener, options);
-
-                // Force passive for performance events
-                const forcePassive = ['scroll', 'wheel', 'touchstart', 'touchmove', 'touchend', 'mousemove', 'pointermove'];
-
-                if (forcePassive.includes(type)) {
-                    const passiveOptions = typeof options === 'object' ?
-                        { ...options, passive: true } :
-                        { passive: true, capture: !!options };
-                    return original.call(this, type, listener, passiveOptions);
-                }
-
-                return original.call(this, type, listener, options);
-            });
-        }
-
-        // Override scroll events for instant response
-        BULLETPROOF.patch(window, 'addEventListener', (original, type, listener, options) => {
-            if (type === 'scroll' && typeof listener === 'function') {
-                // Throttle scroll events to 500fps
-                let lastCall = 0;
-                const throttledListener = (e) => {
-                    const now = performance.now();
-                    if (now - lastCall > 2) {
-                        lastCall = now;
-                        listener(e);
-                    }
-                };
-                return original.call(this, type, throttledListener, options);
-            }
-            return original.call(this, type, listener, options);
-        });
-    }
-};
-
-// ========== INSANE VISIBILITY OVERRIDE ==========
-const INSANE_VISIBILITY = {
-    apply() {
-        // Force page to always be "visible" for maximum performance
-        BULLETPROOF.set(document, 'hidden', false);
-        BULLETPROOF.set(document, 'visibilityState', 'visible');
-
-        // Override hasFocus
-        if ('hasFocus' in document) {
-            BULLETPROOF.set(document, 'hasFocus', () => true);
-        }
-
-        // Block visibility events
-        const blockEvents = ['visibilitychange', 'webkitvisibilitychange', 'mozvisibilitychange', 'blur', 'focus'];
-        blockEvents.forEach(eventType => {
-            BULLETPROOF.safe(() => {
-                document.addEventListener(eventType, (e) => {
-                    e.stopImmediatePropagation();
-                }, { capture: true, passive: false });
-            });
-        });
-
-        // Force window focus
-        BULLETPROOF.set(window, 'document', new Proxy(document, {
-            get(target, prop) {
-                if (prop === 'hidden') return false;
-                if (prop === 'visibilityState') return 'visible';
-                if (prop === 'hasFocus') return () => true;
-                return target[prop];
-            }
-        }));
-    }
-};
-
-// ========== INSANE CSS ANIMATIONS OVERRIDE ==========
-const INSANE_CSS_OVERRIDE = {
-    apply() {
-        // Override getComputedStyle for animation properties
-        if (window.getComputedStyle) {
-            BULLETPROOF.patch(window, 'getComputedStyle', (original, element, pseudoElt) => {
-                const style = original(element, pseudoElt);
-
-                return new Proxy(style, {
-                    get(target, prop) {
-                        // Force ultra-fast animations
-                        if (prop === 'animationDuration' || prop === 'transitionDuration') {
-                            return '0.001s';
-                        }
-                        if (prop === 'animationDelay' || prop === 'transitionDelay') {
-                            return '0s';
-                        }
-                        return target[prop];
-                    }
-                });
-            });
-        }
-
-        // Override CSS.supports to disable expensive features
-        if (window.CSS && window.CSS.supports) {
-            BULLETPROOF.patch(window.CSS, 'supports', (original, ...args) => {
-                const property = args[0];
-                // Disable expensive CSS features
-                if (typeof property === 'string') {
-                    if (property.includes('filter') ||
-                        property.includes('backdrop-filter') ||
-                        property.includes('box-shadow') ||
-                        property.includes('text-shadow')) {
-                        return false;
-                    }
-                }
-                return original(...args);
-            });
-        }
-    }
-};
-
-// ========== INSANE WEB APIS OVERRIDE ==========
-const INSANE_APIS = {
-    apply() {
-        // Override Intersection Observer for instant callbacks
-        if (window.IntersectionObserver) {
-            BULLETPROOF.patch(window, 'IntersectionObserver', (original, callback, options) => {
-                const fastCallback = (entries, observer) => {
-                    // Fire callback immediately
-                    setTimeout(() => callback(entries, observer), 0);
-                };
-                return new original(fastCallback, { ...options, rootMargin: '1000px' });
-            });
-        }
-
-        // Override MutationObserver for instant DOM monitoring
-        if (window.MutationObserver) {
-            BULLETPROOF.patch(window, 'MutationObserver', (original, callback) => {
-                const fastCallback = (mutations, observer) => {
-                    setTimeout(() => callback(mutations, observer), 0);
-                };
-                return new original(fastCallback);
-            });
-        }
-
-        // Override ResizeObserver for instant resize handling
-        if (window.ResizeObserver) {
-            BULLETPROOF.patch(window, 'ResizeObserver', (original, callback) => {
-                const fastCallback = (entries, observer) => {
-                    setTimeout(() => callback(entries, observer), 0);
-                };
-                return new original(fastCallback);
-            });
-        }
-    }
-};
-
-// ========== INSTANT EXECUTION SYSTEM ==========
-const INSANE_INIT = {
-    run() {
-        // Phase 1: Instant CSS (0ms)
-        INSTANT_CSS.inject();
-
-        // Phase 2: Core overrides (immediate)
-        INSANE_ANIMATIONS.apply();
-        INSANE_VISIBILITY.apply();
-        INSANE_CSS_OVERRIDE.apply();
-        INSANE_EVENTS.apply();
-        INSANE_APIS.apply();
-
-        // Phase 3: jQuery monitoring (immediate)
-        INSANE_JQUERY.monitor();
-
-        // Phase 4: Continuous optimization
-        const continuousOpt = () => {
-            INSTANT_CSS.inject(); // Re-inject CSS
-            INSANE_JQUERY.monitor(); // Re-check jQuery
+          return original.call(this, newSpeed, easing, callback);
         };
+      }
+    });
 
-        // Run optimizations every 100ms for 2 seconds
-        let optCount = 0;
-        const optInterval = setInterval(() => {
-            continuousOpt();
-            if (++optCount > 20) clearInterval(optInterval);
-        }, 100);
+    // Patch jQuery UI if present
+    if ($.ui) {
+      // Speed up jQuery UI effects
+      if ($.ui.effect && $.ui.effect.speeds) {
+        $.ui.effect.speeds.slow = 1;
+        $.ui.effect.speeds.normal = 1;
+        $.ui.effect.speeds.fast = 1;
+        $.ui.effect.speeds._default = 1;
+      }
 
-        // Final report
-        setTimeout(() => {
-            console.info('🚀💨 DNA SHIELD: INSANE SPEED MODE ACTIVE - ZERO COMPROMISE');
-        }, 500);
+      // Speed up common jQuery UI widgets
+      const uiDefaults = {
+        'tooltip': { show: { duration: 1 }, hide: { duration: 1 } },
+        'dialog': { show: { duration: 1 }, hide: { duration: 1 } },
+        'accordion': { animate: 1 },
+        'tabs': { show: { duration: 10 }, hide: { duration: 1 } },
+        'menu': { delay: 1 },
+        'autocomplete': { delay: 1 }
+      };
 
-        // Cleanup
-        BULLETPROOF.safe(() => {
-            window.addEventListener('beforeunload', () => {
-                document.getElementById('dna-insane-speed')?.remove();
-            }, { once: true, passive: true });
-        });
+      Object.keys(uiDefaults).forEach(widget => {
+        if ($.ui[widget] && $.ui[widget].prototype && $.ui[widget].prototype.options) {
+          Object.assign($.ui[widget].prototype.options, uiDefaults[widget]);
+        }
+      });
     }
-};
+  }
 
-// ========== EXECUTE IMMEDIATELY ==========
-INSANE_INIT.run();
+  /* ---------------------------------------------------------
+   * 4) Web Animations API — shorten durations/delays
+   * --------------------------------------------------------- */
+  const E = Element;
+  if (E && E.prototype && typeof E.prototype.animate === 'function') {
+    const _animate = E.prototype.animate;
+    Object.defineProperty(E.prototype, 'animate', {
+      configurable: true,
+      writable: true,
+      value: function(keyframes, options) {
+        try {
+          let opts = options;
+          if (typeof opts === 'number') opts = { duration: opts };
+          else if (opts && typeof opts === 'object') opts = Object.assign({}, opts);
+
+          if (opts) {
+            if ('duration' in opts) {
+              const d = Number(opts.duration);
+              if (isFinite(d) && d > 0) {
+                opts.duration = Math.min(1, Math.max(1, d * SCALE));
+              }
+            }
+            if ('delay' in opts) {
+              const dl = Number(opts.delay);
+              if (isFinite(dl) && dl > 0) {
+                opts.delay = Math.min(1, Math.max(0, dl * SCALE));
+              }
+            }
+          }
+          return _animate.call(this, keyframes, opts ?? options);
+        } catch {
+          return _animate.call(this, keyframes, options);
+        }
+      }
+    });
+  }
+
+  /* ---------------------------------------------------------
+   * 5) Tooltip libraries acceleration
+   * --------------------------------------------------------- */
+  function patchTooltipLibraries() {
+    // Tippy.js
+    if (window.tippy && window.tippy.setDefaultProps) {
+      window.tippy.setDefaultProps({
+        duration: [1, 1],
+        delay: [1, 1]
+      });
+    }
+
+    // Popper.js based tooltips
+    if (window.Popper) {
+      const originalCreate = window.Popper.createPopper || window.Popper;
+      if (typeof originalCreate === 'function') {
+        window.Popper.createPopper = function(...args) {
+          const result = originalCreate.apply(this, args);
+          if (result && result.setOptions) {
+            result.setOptions({
+              modifiers: [{
+                name: 'computeStyles',
+                options: { gpuAcceleration: true }
+              }]
+            });
+          }
+          return result;
+        };
+      }
+    }
+
+    // Bootstrap tooltips/popovers
+    if (window.bootstrap) {
+      ['Tooltip', 'Popover'].forEach(component => {
+        if (window.bootstrap[component]) {
+          const DefaultConfig = window.bootstrap[component].Default;
+          if (DefaultConfig) {
+            DefaultConfig.delay = { show: 1, hide: 1 };
+            DefaultConfig.animation = true;
+          }
+        }
+      });
+    }
+  }
+
+  /* ---------------------------------------------------------
+   * 6) Media loading hints — safe, standards-based
+   * --------------------------------------------------------- */
+  function applyMediaHints(root) {
+    const scope = root || document;
+
+    // Images
+    const imgs = scope.querySelectorAll && scope.querySelectorAll('img');
+    if (imgs && imgs.length) {
+      imgs.forEach(img => {
+        if (!img.hasAttribute('loading')) {
+          let top = 100000;
+          try { top = img.getBoundingClientRect().top; } catch {}
+          img.loading = (top < 800) ? 'eager' : 'lazy';
+        }
+        if (!img.hasAttribute('decoding')) {
+          img.decoding = 'async';
+        }
+        if (!img.hasAttribute('fetchpriority')) {
+          let top = 100000;
+          try { top = img.getBoundingClientRect().top; } catch {}
+          if (top < 400) img.fetchPriority = 'high';
+        }
+      });
+    }
+
+    // Iframes
+    const ifr = scope.querySelectorAll && scope.querySelectorAll('iframe');
+    if (ifr && ifr.length) {
+      ifr.forEach(f => {
+        if (!f.hasAttribute('loading')) {
+          let top = 100000;
+          try { top = f.getBoundingClientRect().top; } catch {}
+          f.loading = (top < 800) ? 'eager' : 'lazy';
+        }
+      });
+    }
+  }
+
+  /* ---------------------------------------------------------
+   * 7) Initialize everything
+   * --------------------------------------------------------- */
+
+  // Patch jQuery immediately if available
+  patchJQuery();
+
+  // Patch tooltip libraries
+  patchTooltipLibraries();
+
+  // First pass for media hints
+  applyMediaHints(document);
+
+  // Wait for jQuery and other libraries to load
+  function checkAndPatch() {
+    patchJQuery();
+    patchTooltipLibraries();
+  }
+
+  // Multiple timing strategies to catch libraries
+  setTimeout(checkAndPatch, 50);
+  setTimeout(checkAndPatch, 200);
+  setTimeout(checkAndPatch, 1000);
+
+  // DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkAndPatch, { once: true });
+  }
+
+  // Window load
+  window.addEventListener('load', () => {
+    checkAndPatch();
+    applyMediaHints(document);
+  }, { once: true, passive: true });
+
+  // Observe incoming nodes
+  try {
+    const mo = new MutationObserver(muts => {
+      for (const m of muts) {
+        const nodes = m.addedNodes;
+        if (!nodes) continue;
+        for (let i = 0; i < nodes.length; i++) {
+          const node = nodes[i];
+          if (node && node.nodeType === 1) {
+            if (node.tagName === 'IMG' || node.tagName === 'IFRAME') {
+              applyMediaHints(node.parentNode || node);
+            } else if (typeof node.querySelectorAll === 'function') {
+              applyMediaHints(node);
+
+              // Check for dynamically loaded libraries
+              if (node.tagName === 'SCRIPT') {
+                setTimeout(checkAndPatch, 100);
+              }
+            }
+          }
+        }
+      }
+    });
+    mo.observe(document.documentElement || document, { childList: true, subtree: true });
+  } catch {}
+
+  // Catch libraries loaded via module systems
+  const originalDefine = window.define;
+  if (typeof originalDefine === 'function') {
+    window.define = function(...args) {
+      const result = originalDefine.apply(this, args);
+      setTimeout(checkAndPatch, 50);
+      return result;
+    };
+    Object.assign(window.define, originalDefine);
+  }
+
+  // Patch requestAnimationFrame for smoother animations
+  const _raf = window.requestAnimationFrame;
+  if (_raf) {
+    window.requestAnimationFrame = function(callback) {
+      return _raf.call(this, function(timestamp) {
+        try {
+          return callback(timestamp);
+        } catch (e) {
+          console.warn('DNA Shield: RAF callback error:', e);
+        }
+      });
+    };
+  }
 
 })();
