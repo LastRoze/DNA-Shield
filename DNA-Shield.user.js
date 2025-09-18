@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                DNA Shield
 // @namespace           DNA Shield
-// @version             1.1
+// @version             1.2
 // @author              Last Roze
 // @description         Dominion With Domination
 // @copyright           ©2021 - 2025 // Yoga Budiman
@@ -35,6 +35,9 @@
   };
   const KEEPALIVE_INTERVAL = 45000;
   const MOTION_STYLE_ID = "dna-shield-motion";
+  const MAX_TRANSITION_DURATION = 260;
+  const MAX_ANIMATION_DURATION = 420;
+  const MAX_MOTION_DELAY = 120;
 
   let scheduledScanToken = null;
   let keepAliveTimer = 0;
@@ -144,14 +147,159 @@
       :root {
         scroll-behavior: auto !important;
       }
-      * {
-        animation-duration: 0.001s !important;
-        animation-delay: 0s !important;
-        transition-duration: 0.001s !important;
-        transition-delay: 0s !important;
-      }
     `;
     (document.head || document.documentElement).appendChild(style);
+
+    document.addEventListener("animationstart", handleAnimationStart, true);
+    document.addEventListener("transitionrun", handleTransitionRun, true);
+  }
+
+  function handleAnimationStart(event) {
+    const target = event.target;
+    if (!target || !target.isConnected) {
+      return;
+    }
+
+    if (typeof target.closest === "function" && target.closest("[data-dna-keep-motion]")) {
+      return;
+    }
+
+    const style = window.getComputedStyle(target);
+    const durations = parseTimeList(style.animationDuration);
+    const delays = parseTimeList(style.animationDelay);
+    const iterations = parseIterationList(style.animationIterationCount);
+
+    const adjustedDurations = clampAnimationDurations(durations, iterations);
+    const adjustedDelays = clampDelays(delays);
+
+    if (adjustedDurations.changed) {
+      target.style.animationDuration = formatTimeList(adjustedDurations.values);
+    }
+    if (adjustedDelays.changed) {
+      target.style.animationDelay = formatTimeList(adjustedDelays.values);
+    }
+  }
+
+  function handleTransitionRun(event) {
+    const target = event.target;
+    if (!target || !target.isConnected) {
+      return;
+    }
+
+    if (typeof target.closest === "function" && target.closest("[data-dna-keep-motion]")) {
+      return;
+    }
+
+    const style = window.getComputedStyle(target);
+    const durations = parseTimeList(style.transitionDuration);
+    const delays = parseTimeList(style.transitionDelay);
+
+    const adjustedDurations = clampDurations(durations, MAX_TRANSITION_DURATION);
+    const adjustedDelays = clampDelays(delays);
+
+    if (adjustedDurations.changed) {
+      target.style.transitionDuration = formatTimeList(adjustedDurations.values);
+    }
+    if (adjustedDelays.changed) {
+      target.style.transitionDelay = formatTimeList(adjustedDelays.values);
+    }
+  }
+
+  function parseTimeList(value) {
+    if (!value) {
+      return [];
+    }
+    return value.split(",").map((part) => parseTime(part.trim()));
+  }
+
+  function parseTime(value) {
+    if (!value) {
+      return 0;
+    }
+    if (value.endsWith("ms")) {
+      return Number.parseFloat(value.slice(0, -2)) || 0;
+    }
+    if (value.endsWith("s")) {
+      return (Number.parseFloat(value.slice(0, -1)) || 0) * 1000;
+    }
+    return Number.parseFloat(value) || 0;
+  }
+
+  function parseIterationList(value) {
+    if (!value) {
+      return [];
+    }
+    return value.split(",").map((part) => {
+      const trimmed = part.trim();
+      if (trimmed === "infinite") {
+        return Infinity;
+      }
+      const parsed = Number.parseFloat(trimmed);
+      return Number.isFinite(parsed) ? parsed : 1;
+    });
+  }
+
+  function clampAnimationDurations(durations, iterations) {
+    let changed = false;
+    const values = durations.map((duration, index) => {
+      const iteration = iterations[index] ?? iterations[iterations.length - 1] ?? 1;
+      if (!Number.isFinite(duration) || duration <= 0) {
+        return duration;
+      }
+      if (!Number.isFinite(iteration) || iteration > 1) {
+        return duration;
+      }
+      if (duration > MAX_ANIMATION_DURATION) {
+        changed = true;
+        return MAX_ANIMATION_DURATION;
+      }
+      return duration;
+    });
+    return { values, changed };
+  }
+
+  function clampDurations(durations, max) {
+    let changed = false;
+    const values = durations.map((duration) => {
+      if (!Number.isFinite(duration) || duration <= 0) {
+        return duration;
+      }
+      if (duration > max) {
+        changed = true;
+        return max;
+      }
+      return duration;
+    });
+    return { values, changed };
+  }
+
+  function clampDelays(delays) {
+    let changed = false;
+    const values = delays.map((delay) => {
+      if (!Number.isFinite(delay) || delay <= 0) {
+        return delay;
+      }
+      if (delay > MAX_MOTION_DELAY) {
+        changed = true;
+        return MAX_MOTION_DELAY;
+      }
+      return delay;
+    });
+    return { values, changed };
+  }
+
+  function formatTimeList(values) {
+    return values
+      .map((value) => formatTime(value))
+      .join(", ");
+  }
+
+  function formatTime(value) {
+    const safe = Number.isFinite(value) ? Math.max(0, value) : 0;
+    if (Number.isInteger(safe)) {
+      return `${safe}ms`;
+    }
+    return `${safe.toFixed(2)}ms`;
   }
 
   function tuneImage(img) {
