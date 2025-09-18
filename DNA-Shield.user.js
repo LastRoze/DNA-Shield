@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                DNA Shield
 // @namespace           DNA Shield
-// @version             1.2
+// @version             1.3
 // @author              Last Roze
 // @description         Dominion With Domination
 // @copyright           ©2021 - 2025 // Yoga Budiman
@@ -27,13 +27,15 @@
   "use strict";
 
   const LAZY_TAGS = new Set(["IMG", "IFRAME"]);
+  const PRIORITY_COMPAT_ATTRIBUTE = "importance";
   const IDLE = window.requestIdleCallback || function fallbackIdle(fn) {
     return window.setTimeout(() => fn({ didTimeout: false, timeRemaining: () => 50 }), 1);
   };
   const CANCEL_IDLE = window.cancelIdleCallback || function fallbackCancel(id) {
     window.clearTimeout(id);
   };
-  const KEEPALIVE_INTERVAL = 45000;
+  const KEEPALIVE_INTERVAL_ACTIVE = 35000;
+  const KEEPALIVE_INTERVAL_BACKGROUND = 75000;
   const MOTION_STYLE_ID = "dna-shield-motion";
   const MAX_TRANSITION_DURATION = 260;
   const MAX_ANIMATION_DURATION = 420;
@@ -309,9 +311,12 @@
       img.setAttribute("decoding", "async");
     }
 
-    if (!img.hasAttribute("loading") && shouldLazy(img)) {
+    const shouldDelay = shouldLazy(img);
+    if (!img.hasAttribute("loading") && shouldDelay) {
       img.setAttribute("loading", "lazy");
     }
+
+    applyPriorityHints(img, shouldDelay ? "low" : "high");
   }
 
   function observeNavigation() {
@@ -353,16 +358,14 @@
     }
 
     const sendKeepAlive = () => {
-      if (document.visibilityState === "hidden") {
-        return;
-      }
       const target = buildKeepAliveURL();
-      
+
       if (typeof navigator.sendBeacon === "function") {
         try {
           const payload = typeof Blob === "function" ? new Blob([""], { type: "text/plain" }) : "";
-          navigator.sendBeacon(target, payload);
-          return;
+          if (navigator.sendBeacon(target, payload)) {
+            return;
+          }
         } catch (error) {
           // Fallback to fetch when sendBeacon fails.
         }
@@ -371,19 +374,31 @@
       if (typeof window.fetch === "function") {
         try {
           window.fetch(target, {
-            method: "GET",
+            method: "HEAD",
             mode: "no-cors",
             cache: "no-store",
             keepalive: true,
           }).catch(() => {});
+          return;
         } catch (error) {
           // Swallow errors silently to remain non-intrusive.
+        }
+      }
+
+      if (typeof XMLHttpRequest === "function") {
+        try {
+          const xhr = new XMLHttpRequest();
+          xhr.open("GET", target, true);
+          xhr.timeout = 4000;
+          xhr.send();
+        } catch (error) {
+          // Last resort fallback intentionally silent.
         }
       }
     };
 
     sendKeepAlive();
-    keepAliveTimer = window.setInterval(sendKeepAlive, KEEPALIVE_INTERVAL);
+    keepAliveTimer = window.setInterval(sendKeepAlive, getKeepAliveInterval());
 
     const teardown = () => {
       if (keepAliveTimer) {
@@ -394,6 +409,18 @@
 
     window.addEventListener("pagehide", teardown, { once: true });
     window.addEventListener("beforeunload", teardown, { once: true });
+    document.addEventListener("visibilitychange", () => {
+      sendKeepAlive();
+      restartKeepAliveTimer(sendKeepAlive);
+    });
+    window.addEventListener("focus", () => {
+      sendKeepAlive();
+      restartKeepAliveTimer(sendKeepAlive);
+    });
+    window.addEventListener("pageshow", () => {
+      sendKeepAlive();
+      restartKeepAliveTimer(sendKeepAlive);
+    });
   }
 
   function buildKeepAliveURL() {
@@ -408,9 +435,13 @@
   function tuneIframe(iframe) {
     if (!iframe.isConnected) return;
 
-    if (!iframe.hasAttribute("loading") && shouldLazy(iframe)) {
+    const shouldDelay = shouldLazy(iframe);
+
+    if (!iframe.hasAttribute("loading") && shouldDelay) {
       iframe.setAttribute("loading", "lazy");
     }
+
+    applyPriorityHints(iframe, shouldDelay ? "low" : "high");
   }
 
   function tuneVideo(video) {
@@ -455,8 +486,8 @@
     const rect = el.getBoundingClientRect();
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
     const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-    const verticalThreshold = viewportHeight * 1.2 + 200;
-    const horizontalThreshold = viewportWidth * 1.2 + 200;
+    const verticalThreshold = viewportHeight * 1.1 + 160;
+    const horizontalThreshold = viewportWidth * 1.1 + 160;
 
     const verticallyCritical = rect.top < verticalThreshold && rect.bottom > -200;
     const horizontallyCritical = rect.left < horizontalThreshold && rect.right > -200;
@@ -469,5 +500,52 @@
     if (typeof el.getClientRects !== "function") return false;
     const rects = el.getClientRects();
     return rects.length > 0;
+  }
+
+  function applyPriorityHints(el, priority) {
+    if (!el || typeof priority !== "string") {
+      return;
+    }
+
+    if (typeof el.fetchPriority !== "undefined") {
+      try {
+        if (el.fetchPriority !== priority) {
+          el.fetchPriority = priority;
+        }
+      } catch (error) {
+        // Ignore assignment failures and fall back to attributes.
+      }
+    }
+
+    if (!el.hasAttribute("fetchpriority")) {
+      try {
+        el.setAttribute("fetchpriority", priority);
+      } catch (error) {
+        // Ignore attribute assignment failures to remain non-intrusive.
+      }
+    }
+
+    const compatValue = priority === "high" ? "high" : priority === "low" ? "low" : "auto";
+    if (compatValue !== "auto" && !el.hasAttribute(PRIORITY_COMPAT_ATTRIBUTE)) {
+      try {
+        el.setAttribute(PRIORITY_COMPAT_ATTRIBUTE, compatValue);
+      } catch (error) {
+        // Silently ignore.
+      }
+    }
+  }
+
+  function getKeepAliveInterval() {
+    if (typeof document === "undefined") {
+      return KEEPALIVE_INTERVAL_ACTIVE;
+    }
+    return document.visibilityState === "hidden" ? KEEPALIVE_INTERVAL_BACKGROUND : KEEPALIVE_INTERVAL_ACTIVE;
+  }
+
+  function restartKeepAliveTimer(sender) {
+    if (keepAliveTimer) {
+      window.clearInterval(keepAliveTimer);
+    }
+    keepAliveTimer = window.setInterval(sender, getKeepAliveInterval());
   }
 })();
