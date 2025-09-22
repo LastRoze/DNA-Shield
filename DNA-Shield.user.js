@@ -45,11 +45,17 @@
   const ROOT_STYLE_OVERRIDES = [
     ["scroll-behavior", "auto"],
     ["animation-duration", `${MAX_ANIMATION_DURATION}ms`],
+    ["-webkit-animation-duration", `${MAX_ANIMATION_DURATION}ms`],
     ["animation-delay", `${GLOBAL_MOTION_DELAY}ms`],
+    ["-webkit-animation-delay", `${GLOBAL_MOTION_DELAY}ms`],
     ["animation-timing-function", MOTION_TIMING_FUNCTION],
+    ["-webkit-animation-timing-function", MOTION_TIMING_FUNCTION],
     ["transition-duration", `${MAX_TRANSITION_DURATION}ms`],
+    ["-webkit-transition-duration", `${MAX_TRANSITION_DURATION}ms`],
     ["transition-delay", `${GLOBAL_MOTION_DELAY}ms`],
+    ["-webkit-transition-delay", `${GLOBAL_MOTION_DELAY}ms`],
     ["transition-timing-function", MOTION_TIMING_FUNCTION],
+    ["-webkit-transition-timing-function", MOTION_TIMING_FUNCTION],
   ];
 
   let scheduledScanToken = null;
@@ -173,11 +179,17 @@
       :root :where(*:not([data-dna-keep-motion]))::before,
       :root :where(*:not([data-dna-keep-motion]))::after {
         animation-duration: ${animationDuration} !important;
+        -webkit-animation-duration: ${animationDuration} !important;
         animation-delay: ${motionDelay} !important;
+        -webkit-animation-delay: ${motionDelay} !important;
         animation-timing-function: ${MOTION_TIMING_FUNCTION} !important;
+        -webkit-animation-timing-function: ${MOTION_TIMING_FUNCTION} !important;
         transition-duration: ${transitionDuration} !important;
+        -webkit-transition-duration: ${transitionDuration} !important;
         transition-delay: ${motionDelay} !important;
+        -webkit-transition-delay: ${motionDelay} !important;
         transition-timing-function: ${MOTION_TIMING_FUNCTION} !important;
+        -webkit-transition-timing-function: ${MOTION_TIMING_FUNCTION} !important;
         scroll-behavior: auto !important;
       }
 
@@ -188,11 +200,17 @@
       [data-dna-keep-motion] :where(*)::before,
       [data-dna-keep-motion] :where(*)::after {
         animation-duration: revert !important;
+        -webkit-animation-duration: revert !important;
         animation-delay: revert !important;
+        -webkit-animation-delay: revert !important;
         animation-timing-function: revert !important;
+        -webkit-animation-timing-function: revert !important;
         transition-duration: revert !important;
+        -webkit-transition-duration: revert !important;
         transition-delay: revert !important;
+        -webkit-transition-delay: revert !important;
         transition-timing-function: revert !important;
+        -webkit-transition-timing-function: revert !important;
       }
     `;
     (document.head || document.documentElement).appendChild(style);
