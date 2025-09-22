@@ -33,7 +33,6 @@ describe("DNA Shield internals", () => {
     expect(internals).toMatchObject({
       parseTimeList: expect.any(Function),
       clampAnimationDurations: expect.any(Function),
-      shouldLazy: expect.any(Function),
       applyPriorityHints: expect.any(Function),
       getKeepAliveInterval: expect.any(Function),
       isOnline: expect.any(Function),
@@ -64,22 +63,6 @@ describe("DNA Shield internals", () => {
 
   test("formatTimeList produces CSS-compatible values", () => {
     expect(internals.formatTimeList([100, 10.5])).toBe("100ms, 10.50ms");
-  });
-
-  test("shouldLazy returns false for critical elements and true for distant ones", () => {
-    const critical = document.createElement("img");
-    document.body.appendChild(critical);
-    critical.getClientRects = () => [{ width: 10, height: 10 }];
-    critical.getBoundingClientRect = () => ({ top: 10, bottom: 60, left: 10, right: 60 });
-
-    expect(internals.shouldLazy(critical)).toBe(false);
-
-    const distant = document.createElement("img");
-    document.body.appendChild(distant);
-    distant.getClientRects = () => [{ width: 10, height: 10 }];
-    distant.getBoundingClientRect = () => ({ top: 4000, bottom: 4100, left: 3000, right: 3100 });
-
-    expect(internals.shouldLazy(distant)).toBe(true);
   });
 
   test("applyPriorityHints sets attribute fallbacks", () => {
