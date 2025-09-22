@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                DNA Shield
 // @namespace           DNA Shield
-// @version             1.4
+// @version             1.7
 // @author              Last Roze
 // @description         Dominion With Domination
 // @copyright           ©2021 - 2025 // Yoga Budiman
@@ -26,7 +26,8 @@
 (function dnaShieldUniversal() {
   "use strict";
 
-  const LAZY_TAGS = new Set(["IMG", "IFRAME"]);
+  window.seconds = -1;
+
   const PRIORITY_COMPAT_ATTRIBUTE = "importance";
   const IDLE = window.requestIdleCallback || function fallbackIdle(fn) {
     return window.setTimeout(() => fn({ didTimeout: false, timeRemaining: () => 50 }), 1);
@@ -37,9 +38,20 @@
   const KEEPALIVE_INTERVAL_ACTIVE = 35000;
   const KEEPALIVE_INTERVAL_BACKGROUND = 75000;
   const MOTION_STYLE_ID = "dna-shield-motion";
-  const MAX_TRANSITION_DURATION = 260;
-  const MAX_ANIMATION_DURATION = 420;
-  const MAX_MOTION_DELAY = 120;
+  const MAX_TRANSITION_DURATION = 0.1;
+  const MAX_ANIMATION_DURATION = 0.1;
+  const MAX_MOTION_DELAY = 0.1;
+  const GLOBAL_MOTION_DELAY = MAX_MOTION_DELAY;
+  const MOTION_TIMING_FUNCTION = "step-end";
+  const ROOT_STYLE_OVERRIDES = [
+    ["scroll-behavior", "auto"],
+    ["animation-duration", `${MAX_ANIMATION_DURATION}ms`],
+    ["animation-delay", `${GLOBAL_MOTION_DELAY}ms`],
+    ["animation-timing-function", MOTION_TIMING_FUNCTION],
+    ["transition-duration", `${MAX_TRANSITION_DURATION}ms`],
+    ["transition-delay", `${GLOBAL_MOTION_DELAY}ms`],
+    ["transition-timing-function", MOTION_TIMING_FUNCTION],
+  ];
 
   let scheduledScanToken = null;
   let keepAliveTimer = 0;
@@ -53,13 +65,60 @@
   }
 
   function bootstrap() {
+    primeRootSurface();
     installMotionDampener();
+    enforceRootStyles();
+    accelerateDocumentVisibility();
+    disableJQueryAnimations();
+    accelerateWebAnimations();
+    accelerateHoverMenus();
     optimizeSubtree(document.documentElement);
     observeMutations();
     observeNavigation();
     setupKeepAlive();
     IDLE(() => scanForLateResources());
     window.addEventListener("load", scheduleScan, { once: true });
+  }
+
+  function primeRootSurface() {
+    const root = document.documentElement;
+    if (!root) {
+      return;
+    }
+
+    if (root.classList && root.classList.contains("async-hide")) {
+      root.classList.remove("async-hide");
+    }
+
+    const body = document.body;
+    if (body && body.classList && body.classList.contains("async-hide")) {
+      body.classList.remove("async-hide");
+    }
+
+    const targets = [root, body].filter(Boolean);
+    const properties = [
+      ["-webkit-animation-timing-function", MOTION_TIMING_FUNCTION],
+      ["animation-delay", `${GLOBAL_MOTION_DELAY}ms`],
+      ["animation-duration", `${MAX_ANIMATION_DURATION}ms`],
+      ["animation-timing-function", MOTION_TIMING_FUNCTION],
+      ["scroll-behavior", "auto"],
+      ["transition-delay", `${GLOBAL_MOTION_DELAY}ms`],
+      ["transition-duration", `${MAX_TRANSITION_DURATION}ms`],
+      ["transition-timing-function", MOTION_TIMING_FUNCTION],
+    ];
+
+    for (const target of targets) {
+      if (!target || !target.style) {
+        continue;
+      }
+
+      for (const [property, value] of properties) {
+        try {
+          target.style.setProperty(property, value, "important");
+        } catch (error) {
+        }
+      }
+    }
   }
 
   function observeMutations() {
@@ -146,9 +205,52 @@
     }
     const style = document.createElement("style");
     style.id = MOTION_STYLE_ID;
+    const animationDuration = formatTime(MAX_ANIMATION_DURATION);
+    const transitionDuration = formatTime(MAX_TRANSITION_DURATION);
+    const motionDelay = formatTime(GLOBAL_MOTION_DELAY);
     style.textContent = `
       :root {
         scroll-behavior: auto !important;
+      }
+
+      *,
+      *::before,
+      *::after {
+        -webkit-animation-timing-function: ${MOTION_TIMING_FUNCTION} !important;
+        animation-delay: ${motionDelay} !important;
+        animation-duration: ${animationDuration} !important;
+        animation-timing-function: ${MOTION_TIMING_FUNCTION} !important;
+        scroll-behavior: auto !important;
+        transition-delay: ${motionDelay} !important;
+        transition-duration: ${transitionDuration} !important;
+        transition-timing-function: ${MOTION_TIMING_FUNCTION} !important;
+      }
+
+      :root :where(*:not([data-DNA-Shield])),
+      :root :where(*:not([data-DNA-Shield]))::before,
+      :root :where(*:not([data-DNA-Shield]))::after {
+        -webkit-animation-timing-function: ${MOTION_TIMING_FUNCTION} !important;
+        animation-duration: ${animationDuration} !important;
+        animation-delay: ${motionDelay} !important;
+        animation-timing-function: ${MOTION_TIMING_FUNCTION} !important;
+        transition-duration: ${transitionDuration} !important;
+        transition-delay: ${motionDelay} !important;
+        transition-timing-function: ${MOTION_TIMING_FUNCTION} !important;
+      }
+
+      [data-DNA-Shield],
+      [data-DNA-Shield]::before,
+      [data-DNA-Shield]::after,
+      [data-DNA-Shield] :where(*),
+      [data-DNA-Shield] :where(*)::before,
+      [data-DNA-Shield] :where(*)::after {
+        -webkit-animation-timing-function: revert !important;
+        animation-duration: revert !important;
+        animation-delay: revert !important;
+        animation-timing-function: revert !important;
+        transition-duration: revert !important;
+        transition-delay: revert !important;
+        transition-timing-function: revert !important;
       }
     `;
     (document.head || document.documentElement).appendChild(style);
@@ -157,13 +259,452 @@
     document.addEventListener("transitionrun", handleTransitionRun, true);
   }
 
+  function disableJQueryAnimations() {
+    const MAX_ATTEMPTS = 8;
+    let attempts = 0;
+
+    const attemptDisable = () => {
+      const jq = resolveJQuery();
+      if (jq && jq.fx) {
+        try {
+          jq.fx.off = true;
+          if (window.jQuery && window.jQuery.fx) {
+            window.jQuery.fx.off = true;
+          }
+          if (window.wrappedJSObject && window.wrappedJSObject.jQuery && window.wrappedJSObject.jQuery.fx) {
+            window.wrappedJSObject.jQuery.fx.off = true;
+          }
+        } catch (error) {
+        }
+        return;
+      }
+
+      if (attempts < MAX_ATTEMPTS) {
+        attempts += 1;
+        IDLE(attemptDisable);
+      }
+    };
+
+    attemptDisable();
+  }
+
+  function resolveJQuery() {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    if (window.jQuery && typeof window.jQuery === "function") {
+      return window.jQuery;
+    }
+
+    if (typeof window.wrappedJSObject !== "undefined" && window.wrappedJSObject && window.wrappedJSObject.jQuery) {
+      return window.wrappedJSObject.jQuery;
+    }
+
+    return null;
+  }
+
+  function enforceRootStyles() {
+    const root = document.documentElement;
+    if (!root) {
+      return;
+    }
+
+    applyRootStyles(root);
+
+    if (typeof MutationObserver !== "function") {
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      applyRootStyles(root);
+    });
+
+    observer.observe(root, { attributes: true, attributeFilter: ["style"] });
+  }
+
+  function applyRootStyles(root) {
+    if (!root || !root.style) {
+      return;
+    }
+
+    for (const [property, value] of ROOT_STYLE_OVERRIDES) {
+      try {
+        const currentValue = root.style.getPropertyValue(property);
+        const currentPriority = root.style.getPropertyPriority(property);
+        if (currentValue !== value || currentPriority !== "important") {
+          root.style.setProperty(property, value, "important");
+        }
+      } catch (error) {}
+    }
+  }
+
+  function accelerateDocumentVisibility() {
+    const root = document.documentElement;
+    if (!root) {
+      return;
+    }
+
+    neutralizeAsyncHide(root);
+    if (document.body) {
+      neutralizeAsyncHide(document.body);
+    }
+
+    try {
+      const hiddenNodes = root.querySelectorAll(".async-hide");
+      for (const node of hiddenNodes) {
+        neutralizeAsyncHide(node);
+      }
+    } catch (error) {}
+
+    if (typeof MutationObserver !== "function") {
+      return;
+    }
+
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === "attributes" && mutation.attributeName === "class") {
+          neutralizeAsyncHide(mutation.target);
+        } else if (mutation.type === "childList") {
+          for (const added of mutation.addedNodes) {
+            if (!added || added.nodeType !== Node.ELEMENT_NODE) {
+              continue;
+            }
+
+            neutralizeAsyncHide(added);
+
+            if (typeof added.querySelectorAll === "function") {
+              try {
+                const descendants = added.querySelectorAll(".async-hide");
+                for (const descendant of descendants) {
+                  neutralizeAsyncHide(descendant);
+                }
+              } catch (error) {}
+            }
+          }
+        }
+      }
+    });
+
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+  }
+
+  function accelerateHoverMenus() {
+    const attributes = [
+      "data-hover-delay",
+      "data-menu-delay",
+      "data-delay",
+      "data-hover-intent",
+      "data-hover-intent-delay",
+      "data-hover-intent-time",
+      "data-tooltip-delay",
+      "data-popover-delay",
+    ];
+
+    const styleProperties = [
+      "animation-delay",
+      "transition-delay",
+    ];
+
+    const customProperties = [
+      "--animation-delay",
+      "--menu-delay",
+      "--hover-delay",
+      "--tooltip-delay",
+      "--transition-delay",
+    ];
+
+    const datasetKeys = [
+      "hoverDelay",
+      "menuDelay",
+      "delay",
+      "hoverIntentDelay",
+      "hoverIntentTime",
+      "tooltipDelay",
+      "popoverDelay",
+    ];
+
+    const update = (node) => {
+      let current = node;
+      while (current && current.nodeType === Node.ELEMENT_NODE) {
+        if (current.classList && current.classList.contains("async-hide")) {
+          current.classList.remove("async-hide");
+        }
+
+        for (const attr of attributes) {
+          if (current.hasAttribute && current.hasAttribute(attr)) {
+            try {
+              current.setAttribute(attr, "0");
+            } catch (error) {
+            }
+          }
+        }
+
+        if (current.dataset) {
+          for (const key of datasetKeys) {
+            if (key in current.dataset) {
+              current.dataset[key] = "0";
+            }
+          }
+        }
+
+        if (current.style) {
+          for (const property of styleProperties) {
+            try {
+              current.style.setProperty(property, `${GLOBAL_MOTION_DELAY}ms`, "important");
+            } catch (error) {
+            }
+          }
+          for (const property of customProperties) {
+            try {
+              current.style.setProperty(property, `${GLOBAL_MOTION_DELAY}ms`);
+            } catch (error) {
+            }
+          }
+        }
+
+        current = current.parentElement;
+      }
+    };
+
+    const handler = (event) => {
+      const target = event.target;
+      if (!target) {
+        return;
+      }
+      update(target);
+    };
+
+    document.addEventListener("pointerover", handler, true);
+    document.addEventListener("focusin", handler, true);
+  }
+
+  function neutralizeAsyncHide(target) {
+    if (!target) {
+      return;
+    }
+
+    let removed = false;
+
+    if (target.classList && target.classList.contains("async-hide")) {
+      try {
+        target.classList.remove("async-hide");
+        removed = true;
+      } catch (error) {}
+    }
+
+    if (typeof target.hasAttribute === "function" && target.hasAttribute("data-async-hide")) {
+      try {
+        target.removeAttribute("data-async-hide");
+        removed = true;
+      } catch (error) {}
+    }
+
+    if (removed && target.style) {
+      tryRemoveAsyncHideStyles(target);
+    }
+  }
+
+  function tryRemoveAsyncHideStyles(target) {
+    try {
+      if (
+        target.style.getPropertyPriority("opacity") === "important" &&
+        target.style.getPropertyValue("opacity") === "0"
+      ) {
+        target.style.removeProperty("opacity");
+      }
+    } catch (error) {}
+
+    try {
+      if (
+        target.style.getPropertyPriority("visibility") === "important" &&
+        target.style.getPropertyValue("visibility") === "hidden"
+      ) {
+        target.style.removeProperty("visibility");
+      }
+    } catch (error) {}
+  }
+
+  function accelerateWebAnimations() {
+    if (typeof Element === "undefined") {
+      return;
+    }
+
+    const proto = Element.prototype;
+    if (!proto || typeof proto.animate !== "function") {
+      return;
+    }
+
+    if (proto.animate && proto.animate.__dnaShieldPatched) {
+      return;
+    }
+
+    const originalAnimate = proto.animate;
+
+    const patchedAnimate = function patchedAnimate(keyframes, options) {
+      const normalizedOptions = normalizeAnimationOptions(options);
+      const animation = originalAnimate.apply(this, [keyframes, normalizedOptions]);
+      tightenAnimationTiming(animation);
+      return animation;
+    };
+
+    patchedAnimate.__dnaShieldPatched = true;
+
+    try {
+      Object.defineProperty(proto, "animate", {
+        value: patchedAnimate,
+        writable: true,
+        configurable: true,
+      });
+    } catch (error) {
+      try {
+        proto.animate = patchedAnimate;
+      } catch (assignmentError) {}
+    }
+  }
+
+  function normalizeAnimationOptions(input) {
+    if (typeof input === "number") {
+      return Math.min(input, MAX_ANIMATION_DURATION);
+    }
+
+    if (!input || typeof input !== "object") {
+      return input;
+    }
+
+    if (
+      typeof window !== "undefined" &&
+      typeof window.KeyframeEffect === "function" &&
+      input instanceof window.KeyframeEffect
+    ) {
+      tightenKeyframeTiming(input);
+      return input;
+    }
+
+    const clone = Array.isArray(input) ? input.slice() : { ...input };
+
+    if ("duration" in clone && Number.isFinite(clone.duration) && clone.duration > MAX_ANIMATION_DURATION) {
+      clone.duration = MAX_ANIMATION_DURATION;
+    }
+
+    if ("delay" in clone && Number.isFinite(clone.delay) && clone.delay > MAX_MOTION_DELAY) {
+      clone.delay = MAX_MOTION_DELAY;
+    }
+
+    if ("endDelay" in clone && Number.isFinite(clone.endDelay) && clone.endDelay > MAX_MOTION_DELAY) {
+      clone.endDelay = MAX_MOTION_DELAY;
+    }
+
+    return clone;
+  }
+
+  function tightenAnimationTiming(animation) {
+    if (!animation || typeof animation !== "object") {
+      return;
+    }
+
+    const effect = animation.effect;
+    if (!effect || typeof effect.getTiming !== "function" || typeof effect.updateTiming !== "function") {
+      return;
+    }
+
+    let timing;
+    try {
+      timing = effect.getTiming();
+    } catch (error) {
+      return;
+    }
+
+    if (!timing || typeof timing !== "object") {
+      return;
+    }
+
+    const nextTiming = { ...timing };
+    let changed = false;
+
+    if (
+      Number.isFinite(nextTiming.duration) &&
+      nextTiming.duration > MAX_ANIMATION_DURATION &&
+      (!Number.isFinite(nextTiming.iterations) || nextTiming.iterations <= 1)
+    ) {
+      nextTiming.duration = MAX_ANIMATION_DURATION;
+      changed = true;
+    }
+
+    if (Number.isFinite(nextTiming.delay) && nextTiming.delay > MAX_MOTION_DELAY) {
+      nextTiming.delay = MAX_MOTION_DELAY;
+      changed = true;
+    }
+
+    if (Number.isFinite(nextTiming.endDelay) && nextTiming.endDelay > MAX_MOTION_DELAY) {
+      nextTiming.endDelay = MAX_MOTION_DELAY;
+      changed = true;
+    }
+
+    if (changed) {
+      try {
+        effect.updateTiming(nextTiming);
+      } catch (error) {}
+    }
+  }
+
+  function tightenKeyframeTiming(effect) {
+    if (!effect || typeof effect.getTiming !== "function" || typeof effect.updateTiming !== "function") {
+      return;
+    }
+
+    let timing;
+    try {
+      timing = effect.getTiming();
+    } catch (error) {
+      return;
+    }
+
+    if (!timing || typeof timing !== "object") {
+      return;
+    }
+
+    const nextTiming = { ...timing };
+    let changed = false;
+
+    if (
+      Number.isFinite(nextTiming.duration) &&
+      nextTiming.duration > MAX_ANIMATION_DURATION &&
+      (!Number.isFinite(nextTiming.iterations) || nextTiming.iterations <= 1)
+    ) {
+      nextTiming.duration = MAX_ANIMATION_DURATION;
+      changed = true;
+    }
+
+    if (Number.isFinite(nextTiming.delay) && nextTiming.delay > MAX_MOTION_DELAY) {
+      nextTiming.delay = MAX_MOTION_DELAY;
+      changed = true;
+    }
+
+    if (Number.isFinite(nextTiming.endDelay) && nextTiming.endDelay > MAX_MOTION_DELAY) {
+      nextTiming.endDelay = MAX_MOTION_DELAY;
+      changed = true;
+    }
+
+    if (changed) {
+      try {
+        effect.updateTiming(nextTiming);
+      } catch (error) {}
+    }
+  }
+
   function handleAnimationStart(event) {
     const target = event.target;
     if (!target || !target.isConnected) {
       return;
     }
 
-    if (typeof target.closest === "function" && target.closest("[data-dna-keep-motion]")) {
+    if (typeof target.closest === "function" && target.closest("[data-DNA-Shield]")) {
       return;
     }
 
@@ -189,7 +730,7 @@
       return;
     }
 
-    if (typeof target.closest === "function" && target.closest("[data-dna-keep-motion]")) {
+    if (typeof target.closest === "function" && target.closest("[data-DNA-Shield]")) {
       return;
     }
 
@@ -312,12 +853,11 @@
       img.setAttribute("decoding", "async");
     }
 
-    const shouldDelay = shouldLazy(img);
-    if (!img.hasAttribute("loading") && shouldDelay) {
-      img.setAttribute("loading", "lazy");
+    if (img.getAttribute("loading") !== "eager") {
+      img.setAttribute("loading", "eager");
     }
 
-    applyPriorityHints(img, shouldDelay ? "low" : "high");
+    applyPriorityHints(img, "high");
   }
 
   function observeNavigation() {
@@ -381,9 +921,7 @@
             finalize();
             return;
           }
-        } catch (error) {
-          // Fallback to fetch when sendBeacon fails.
-        }
+        } catch (error) {}
       }
 
       if (typeof window.fetch === "function") {
@@ -402,9 +940,7 @@
             timeoutId = window.setTimeout(() => {
               try {
                 controller.abort();
-              } catch (abortError) {
-                // Silently ignore abort errors.
-              }
+              } catch (abortError) {}
             }, 4000);
           }
 
@@ -423,9 +959,7 @@
 
           finalizeFetch();
           return;
-        } catch (error) {
-          // Swallow errors silently to remain non-intrusive.
-        }
+        } catch (error) {}
       }
 
       if (typeof XMLHttpRequest === "function") {
@@ -439,9 +973,7 @@
           xhr.addEventListener("timeout", finalize);
           xhr.send();
           return;
-        } catch (error) {
-          // Last resort fallback intentionally silent.
-        }
+        } catch (error) {}
       }
 
       finalize();
@@ -487,20 +1019,18 @@
   function tuneIframe(iframe) {
     if (!iframe.isConnected) return;
 
-    const shouldDelay = shouldLazy(iframe);
-
-    if (!iframe.hasAttribute("loading") && shouldDelay) {
-      iframe.setAttribute("loading", "lazy");
+    if (iframe.getAttribute("loading") !== "eager") {
+      iframe.setAttribute("loading", "eager");
     }
 
-    applyPriorityHints(iframe, shouldDelay ? "low" : "high");
+    applyPriorityHints(iframe, "high");
   }
 
   function tuneVideo(video) {
     if (!video.isConnected) return;
 
     if (!video.hasAttribute("preload") && !video.autoplay && !video.hasAttribute("data-dna-keep-preload")) {
-      video.setAttribute("preload", "metadata");
+      video.setAttribute("preload", "auto");
     }
 
     if (video.hasAttribute("poster")) {
@@ -518,40 +1048,8 @@
     if (!audio.isConnected) return;
 
     if (!audio.hasAttribute("preload") && !audio.autoplay && !audio.hasAttribute("data-dna-keep-preload")) {
-      audio.setAttribute("preload", "metadata");
+      audio.setAttribute("preload", "auto");
     }
-  }
-
-  function shouldLazy(el) {
-    if (!LAZY_TAGS.has(el.tagName)) {
-      return false;
-    }
-
-    if (el.hasAttribute("loading")) {
-      return el.getAttribute("loading") === "lazy";
-    }
-
-    if (!isConnectedAndVisible(el)) {
-      return true;
-    }
-
-    const rect = el.getBoundingClientRect();
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-    const verticalThreshold = viewportHeight * 1.1 + 160;
-    const horizontalThreshold = viewportWidth * 1.1 + 160;
-
-    const verticallyCritical = rect.top < verticalThreshold && rect.bottom > -200;
-    const horizontallyCritical = rect.left < horizontalThreshold && rect.right > -200;
-
-    return !(verticallyCritical && horizontallyCritical);
-  }
-
-  function isConnectedAndVisible(el) {
-    if (!el.isConnected) return false;
-    if (typeof el.getClientRects !== "function") return false;
-    const rects = el.getClientRects();
-    return rects.length > 0;
   }
 
   function applyPriorityHints(el, priority) {
@@ -564,26 +1062,20 @@
         if (el.fetchPriority !== priority) {
           el.fetchPriority = priority;
         }
-      } catch (error) {
-        // Ignore assignment failures and fall back to attributes.
-      }
+      } catch (error) {}
     }
 
     if (!el.hasAttribute("fetchpriority")) {
       try {
         el.setAttribute("fetchpriority", priority);
-      } catch (error) {
-        // Ignore attribute assignment failures to remain non-intrusive.
-      }
+      } catch (error) {}
     }
 
     const compatValue = priority === "high" ? "high" : priority === "low" ? "low" : "auto";
     if (compatValue !== "auto" && !el.hasAttribute(PRIORITY_COMPAT_ATTRIBUTE)) {
       try {
         el.setAttribute(PRIORITY_COMPAT_ATTRIBUTE, compatValue);
-      } catch (error) {
-        // Silently ignore.
-      }
+      } catch (error) {}
     }
   }
 
