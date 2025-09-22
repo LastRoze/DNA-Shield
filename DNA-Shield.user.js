@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                DNA Shield
 // @namespace           DNA Shield
-// @version             1.3
+// @version             1.4
 // @author              Last Roze
 // @description         Dominion With Domination
 // @copyright           ©2021 - 2025 // Yoga Budiman
@@ -44,6 +44,7 @@
   let scheduledScanToken = null;
   let keepAliveTimer = 0;
   let navigationHooksInstalled = false;
+  let keepAliveInFlight = false;
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", bootstrap, { once: true });
@@ -358,12 +359,26 @@
     }
 
     const sendKeepAlive = () => {
+      if (keepAliveInFlight) {
+        return;
+      }
+
+      if (!isOnline()) {
+        return;
+      }
+
       const target = buildKeepAliveURL();
+      keepAliveInFlight = true;
+
+      const finalize = () => {
+        keepAliveInFlight = false;
+      };
 
       if (typeof navigator.sendBeacon === "function") {
         try {
           const payload = typeof Blob === "function" ? new Blob([""], { type: "text/plain" }) : "";
           if (navigator.sendBeacon(target, payload)) {
+            finalize();
             return;
           }
         } catch (error) {
@@ -373,12 +388,40 @@
 
       if (typeof window.fetch === "function") {
         try {
-          window.fetch(target, {
-            method: "HEAD",
-            mode: "no-cors",
+          const requestInit = {
+            method: "GET",
             cache: "no-store",
+            credentials: "include",
             keepalive: true,
-          }).catch(() => {});
+          };
+
+          let timeoutId = 0;
+          if (typeof AbortController === "function") {
+            const controller = new AbortController();
+            requestInit.signal = controller.signal;
+            timeoutId = window.setTimeout(() => {
+              try {
+                controller.abort();
+              } catch (abortError) {
+                // Silently ignore abort errors.
+              }
+            }, 4000);
+          }
+
+          const finalizeFetch = () => {
+            if (timeoutId) {
+              window.clearTimeout(timeoutId);
+            }
+            finalize();
+          };
+
+          const request = window.fetch(target, requestInit);
+          if (request && typeof request.then === "function") {
+            request.then(finalizeFetch, finalizeFetch);
+            return;
+          }
+
+          finalizeFetch();
           return;
         } catch (error) {
           // Swallow errors silently to remain non-intrusive.
@@ -390,46 +433,55 @@
           const xhr = new XMLHttpRequest();
           xhr.open("GET", target, true);
           xhr.timeout = 4000;
+          xhr.withCredentials = true;
+          xhr.addEventListener("loadend", finalize);
+          xhr.addEventListener("error", finalize);
+          xhr.addEventListener("timeout", finalize);
           xhr.send();
+          return;
         } catch (error) {
           // Last resort fallback intentionally silent.
         }
       }
+
+      finalize();
+    };
+
+    const immediateKeepAlive = () => {
+      if (!isOnline()) {
+        return;
+      }
+      sendKeepAlive();
+      restartKeepAliveTimer(sendKeepAlive);
     };
 
     sendKeepAlive();
     keepAliveTimer = window.setInterval(sendKeepAlive, getKeepAliveInterval());
 
     const teardown = () => {
-      if (keepAliveTimer) {
-        window.clearInterval(keepAliveTimer);
-        keepAliveTimer = 0;
-      }
+      stopKeepAliveTimer();
     };
 
     window.addEventListener("pagehide", teardown, { once: true });
     window.addEventListener("beforeunload", teardown, { once: true });
-    document.addEventListener("visibilitychange", () => {
-      sendKeepAlive();
-      restartKeepAliveTimer(sendKeepAlive);
-    });
-    window.addEventListener("focus", () => {
-      sendKeepAlive();
-      restartKeepAliveTimer(sendKeepAlive);
-    });
-    window.addEventListener("pageshow", () => {
-      sendKeepAlive();
-      restartKeepAliveTimer(sendKeepAlive);
-    });
+    document.addEventListener("visibilitychange", immediateKeepAlive);
+    window.addEventListener("focus", immediateKeepAlive);
+    window.addEventListener("pageshow", immediateKeepAlive);
+    window.addEventListener("online", immediateKeepAlive);
+    window.addEventListener("offline", stopKeepAliveTimer);
   }
 
   function buildKeepAliveURL() {
     if (typeof URL !== "function") {
       return window.location.href;
     }
-    const url = new URL(window.location.href);
-    url.searchParams.set("dna-shield-keepalive", Date.now().toString(36));
-    return url.toString();
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("dna-shield-keepalive", Date.now().toString(36));
+      return url.toString();
+    } catch (error) {
+      return window.location.href;
+    }
   }
 
   function tuneIframe(iframe) {
@@ -543,9 +595,21 @@
   }
 
   function restartKeepAliveTimer(sender) {
+    stopKeepAliveTimer();
+    keepAliveTimer = window.setInterval(sender, getKeepAliveInterval());
+  }
+
+  function stopKeepAliveTimer() {
     if (keepAliveTimer) {
       window.clearInterval(keepAliveTimer);
+      keepAliveTimer = 0;
     }
-    keepAliveTimer = window.setInterval(sender, getKeepAliveInterval());
+  }
+
+  function isOnline() {
+    if (typeof navigator === "undefined" || typeof navigator.onLine !== "boolean") {
+      return true;
+    }
+    return navigator.onLine;
   }
 })();
