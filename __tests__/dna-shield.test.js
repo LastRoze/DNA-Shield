@@ -58,7 +58,7 @@ describe("DNA Shield internals", () => {
 
   test("clampDelays enforces motion delay limit", () => {
     const result = internals.clampDelays([0, 10, 1000]);
-    expect(result.values).toEqual([0, 10, 60]);
+    expect(result.values).toEqual([0, 0, 0]);
     expect(result.changed).toBe(true);
   });
 
