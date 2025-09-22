@@ -634,6 +634,11 @@
     }
   }
 
+  /**
+   * Converts a comma-separated list of CSS time values into an array of millisecond durations.
+   * @param {string} value - Raw CSS time expression to parse.
+   * @returns {number[]} Array of normalized millisecond values.
+   */
   function parseTimeList(value) {
     if (!value) {
       return [];
@@ -641,6 +646,11 @@
     return value.split(",").map((part) => parseTime(part.trim()));
   }
 
+  /**
+   * Normalizes a CSS time token into milliseconds.
+   * @param {string} value - Raw time token such as `250ms` or `0.2s`.
+   * @returns {number} Millisecond representation of the provided token.
+   */
   function parseTime(value) {
     if (!value) {
       return 0;
@@ -654,6 +664,11 @@
     return Number.parseFloat(value) || 0;
   }
 
+  /**
+   * Parses iteration counts from CSS animation definitions.
+   * @param {string} value - Comma-separated iteration list.
+   * @returns {number[]} Normalized iteration counts where `infinite` becomes `Infinity`.
+   */
   function parseIterationList(value) {
     if (!value) {
       return [];
@@ -668,6 +683,12 @@
     });
   }
 
+  /**
+   * Clamps animation durations while respecting repeated or infinite animations.
+   * @param {number[]} durations - Millisecond durations for each animation.
+   * @param {number[]} iterations - Associated iteration counts for each animation.
+   * @returns {{values: number[], changed: boolean}} Clamped durations alongside a change flag.
+   */
   function clampAnimationDurations(durations, iterations) {
     let changed = false;
     const values = durations.map((duration, index) => {
@@ -687,6 +708,12 @@
     return { values, changed };
   }
 
+  /**
+   * Restricts durations to a maximum threshold.
+   * @param {number[]} durations - Millisecond durations for transitions or animations.
+   * @param {number} max - Maximum allowed duration.
+   * @returns {{values: number[], changed: boolean}} Clamped durations alongside a change flag.
+   */
   function clampDurations(durations, max) {
     let changed = false;
     const values = durations.map((duration) => {
@@ -702,6 +729,11 @@
     return { values, changed };
   }
 
+  /**
+   * Limits delay values so motion starts promptly.
+   * @param {number[]} delays - Millisecond delay values.
+   * @returns {{values: number[], changed: boolean}} Normalized delays with a change indicator.
+   */
   function clampDelays(delays) {
     let changed = false;
     const values = delays.map((delay) => {
@@ -717,12 +749,22 @@
     return { values, changed };
   }
 
+  /**
+   * Formats numeric millisecond values into a CSS-ready string list.
+   * @param {number[]} values - Millisecond values to stringify.
+   * @returns {string} CSS-compatible time list.
+   */
   function formatTimeList(values) {
     return values
       .map((value) => formatTime(value))
       .join(", ");
   }
 
+  /**
+   * Formats a millisecond duration into a CSS time token.
+   * @param {number} value - Duration in milliseconds.
+   * @returns {string} CSS time string, clamped to non-negative numbers.
+   */
   function formatTime(value) {
     const safe = Number.isFinite(value) ? Math.max(0, value) : 0;
     if (Number.isInteger(safe)) {
@@ -731,6 +773,11 @@
     return `${safe.toFixed(2)}ms`;
   }
 
+  /**
+   * Applies decoding, lazy-loading, and priority hints to images.
+   * @param {HTMLImageElement} img - Target image element.
+   * @returns {void}
+   */
   function tuneImage(img) {
     if (!img.isConnected) return;
 
@@ -910,6 +957,11 @@
     }
   }
 
+  /**
+   * Applies lazy-loading and priority hints to iframes.
+   * @param {HTMLIFrameElement} iframe - Target iframe element.
+   * @returns {void}
+   */
   function tuneIframe(iframe) {
     if (!iframe.isConnected) return;
 
@@ -922,6 +974,11 @@
     applyPriorityHints(iframe, shouldDelay ? "low" : "high");
   }
 
+  /**
+   * Tunes video elements to avoid heavy eager loading while caching poster art.
+   * @param {HTMLVideoElement} video - Target video element.
+   * @returns {void}
+   */
   function tuneVideo(video) {
     if (!video.isConnected) return;
 
@@ -940,6 +997,11 @@
     }
   }
 
+  /**
+   * Tunes audio elements to limit preload overhead unless explicitly required.
+   * @param {HTMLAudioElement} audio - Target audio element.
+   * @returns {void}
+   */
   function tuneAudio(audio) {
     if (!audio.isConnected) return;
 
@@ -948,6 +1010,11 @@
     }
   }
 
+  /**
+   * Determines whether an element should be lazily loaded based on viewport heuristics.
+   * @param {Element} el - Element to evaluate for lazy loading.
+   * @returns {boolean} True when the element can be safely deferred.
+   */
   function shouldLazy(el) {
     if (!LAZY_TAGS.has(el.tagName)) {
       return false;
@@ -973,6 +1040,11 @@
     return !(verticallyCritical && horizontallyCritical);
   }
 
+  /**
+   * Checks whether an element is connected to the DOM and has measurable geometry.
+   * @param {Element} el - Element to inspect.
+   * @returns {boolean} True when the element is attached and visible.
+   */
   function isConnectedAndVisible(el) {
     if (!el.isConnected) return false;
     if (typeof el.getClientRects !== "function") return false;
@@ -980,6 +1052,12 @@
     return rects.length > 0;
   }
 
+  /**
+   * Applies modern and legacy priority hints to a media element.
+   * @param {Element} el - Target media element.
+   * @param {string} priority - Desired priority (`high`, `low`, or `auto`).
+   * @returns {void}
+   */
   function applyPriorityHints(el, priority) {
     if (!el || typeof priority !== "string") {
       return;
@@ -1013,6 +1091,10 @@
     }
   }
 
+  /**
+   * Resolves the keep-alive interval based on page visibility state.
+   * @returns {number} Interval duration in milliseconds.
+   */
   function getKeepAliveInterval() {
     if (typeof document === "undefined") {
       return KEEPALIVE_INTERVAL_ACTIVE;
@@ -1020,11 +1102,20 @@
     return document.visibilityState === "hidden" ? KEEPALIVE_INTERVAL_BACKGROUND : KEEPALIVE_INTERVAL_ACTIVE;
   }
 
+  /**
+   * Restarts the keep-alive timer with the provided sender callback.
+   * @param {() => void} sender - Callback responsible for dispatching keep-alive pings.
+   * @returns {void}
+   */
   function restartKeepAliveTimer(sender) {
     stopKeepAliveTimer();
     keepAliveTimer = window.setInterval(sender, getKeepAliveInterval());
   }
 
+  /**
+   * Stops the active keep-alive timer if it exists.
+   * @returns {void}
+   */
   function stopKeepAliveTimer() {
     if (keepAliveTimer) {
       window.clearInterval(keepAliveTimer);
@@ -1032,10 +1123,34 @@
     }
   }
 
+  /**
+   * Determines whether the browser currently reports an online connection.
+   * @returns {boolean} True when the browser is online or cannot report state.
+   */
   function isOnline() {
     if (typeof navigator === "undefined" || typeof navigator.onLine !== "boolean") {
       return true;
     }
     return navigator.onLine;
+  }
+
+  if (typeof window !== "undefined") {
+    const existingInternals = window.__DNA_SHIELD_INTERNALS__ || {};
+    window.__DNA_SHIELD_INTERNALS__ = {
+      ...existingInternals,
+      parseTimeList,
+      parseIterationList,
+      clampAnimationDurations,
+      clampDurations,
+      clampDelays,
+      formatTimeList,
+      formatTime,
+      shouldLazy,
+      applyPriorityHints,
+      getKeepAliveInterval,
+      restartKeepAliveTimer,
+      stopKeepAliveTimer,
+      isOnline,
+    };
   }
 })();
