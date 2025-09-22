@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                DNA Shield
 // @namespace           DNA Shield
-// @version             1.6
+// @version             1.7
 // @author              Last Roze
 // @description         Dominion With Domination
 // @copyright           ©2021 - 2025 // Yoga Budiman
@@ -34,6 +34,9 @@
   const CANCEL_IDLE = window.cancelIdleCallback || function fallbackCancel(id) {
     window.clearTimeout(id);
   };
+  const RAF = window.requestAnimationFrame || function fallbackFrame(fn) {
+    return window.setTimeout(() => fn(Date.now()), 16);
+  };
   const KEEPALIVE_INTERVAL_ACTIVE = 35000;
   const KEEPALIVE_INTERVAL_BACKGROUND = 75000;
   const MOTION_STYLE_ID = "dna-shield-motion";
@@ -63,6 +66,9 @@
   let keepAliveTimer = 0;
   let navigationHooksInstalled = false;
   let keepAliveInFlight = false;
+  const pendingLazyEvaluations = new WeakSet();
+  const lazyEvaluationAttempts = new WeakMap();
+  const managedLazyAttributes = new WeakSet();
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", bootstrap, { once: true });
@@ -787,12 +793,7 @@
       img.setAttribute("decoding", "async");
     }
 
-    const shouldDelay = shouldLazy(img);
-    if (!img.hasAttribute("loading") && shouldDelay) {
-      img.setAttribute("loading", "lazy");
-    }
-
-    applyPriorityHints(img, shouldDelay ? "low" : "high");
+    applyLazyStrategy(img);
   }
 
   function observeNavigation() {
@@ -967,13 +968,7 @@
   function tuneIframe(iframe) {
     if (!iframe.isConnected) return;
 
-    const shouldDelay = shouldLazy(iframe);
-
-    if (!iframe.hasAttribute("loading") && shouldDelay) {
-      iframe.setAttribute("loading", "lazy");
-    }
-
-    applyPriorityHints(iframe, shouldDelay ? "low" : "high");
+    applyLazyStrategy(iframe);
   }
 
   /**
@@ -1013,24 +1008,97 @@
   }
 
   /**
-   * Determines whether an element should be lazily loaded based on viewport heuristics.
-   * @param {Element} el - Element to evaluate for lazy loading.
-   * @returns {boolean} True when the element can be safely deferred.
+   * Applies lazy-loading preferences with retry support for uncertain layout states.
+   * @param {Element} el - Target media element.
+   * @returns {void}
    */
-  function shouldLazy(el) {
-    if (!LAZY_TAGS.has(el.tagName)) {
-      return false;
+  function applyLazyStrategy(el) {
+    if (!el || !LAZY_TAGS.has(el.tagName)) {
+      return;
+    }
+
+    const decision = computeLazyDecision(el);
+
+    if (decision === "lazy") {
+      lazyEvaluationAttempts.delete(el);
+      if (!el.hasAttribute("loading")) {
+        try {
+          el.setAttribute("loading", "lazy");
+          managedLazyAttributes.add(el);
+        } catch (error) {
+          // Ignore attribute assignment issues to remain resilient.
+        }
+      }
+      applyPriorityHints(el, "low");
+      return;
+    }
+
+    if (decision === "eager") {
+      lazyEvaluationAttempts.delete(el);
+      if (managedLazyAttributes.has(el)) {
+        try {
+          if (el.getAttribute("loading") === "lazy") {
+            el.removeAttribute("loading");
+          }
+        } catch (error) {
+          // Silently ignore removal failures caused by locked attributes.
+        }
+        managedLazyAttributes.delete(el);
+      }
+      applyPriorityHints(el, "high");
+      return;
+    }
+
+    const attempts = lazyEvaluationAttempts.get(el) || 0;
+    if (attempts >= 2) {
+      lazyEvaluationAttempts.delete(el);
+      if (managedLazyAttributes.has(el)) {
+        try {
+          if (el.getAttribute("loading") === "lazy") {
+            el.removeAttribute("loading");
+          }
+        } catch (error) {
+          // Ignore failures and continue with eager hints.
+        }
+        managedLazyAttributes.delete(el);
+      }
+      applyPriorityHints(el, "high");
+      return;
+    }
+
+    lazyEvaluationAttempts.set(el, attempts + 1);
+    scheduleLazyEvaluation(el);
+  }
+
+  /**
+   * Calculates the ideal lazy-loading decision for a media element.
+   * @param {Element} el - Element to inspect.
+   * @returns {"lazy"|"eager"|"defer"} Lazy-loading state decision.
+   */
+  function computeLazyDecision(el) {
+    if (!el || !LAZY_TAGS.has(el.tagName)) {
+      return "eager";
     }
 
     if (el.hasAttribute("loading")) {
-      return el.getAttribute("loading") === "lazy";
+      return el.getAttribute("loading") === "lazy" ? "lazy" : "eager";
     }
 
-    if (!isConnectedAndVisible(el)) {
-      return true;
+    if (!el.isConnected) {
+      return "lazy";
     }
 
-    const rect = el.getBoundingClientRect();
+    if (!hasUsableLayout(el)) {
+      return isEffectivelyHidden(el) ? "lazy" : "defer";
+    }
+
+    let rect;
+    try {
+      rect = el.getBoundingClientRect();
+    } catch (error) {
+      return "defer";
+    }
+
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
     const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
     const verticalThreshold = viewportHeight * 1.1 + 160;
@@ -1039,19 +1107,93 @@
     const verticallyCritical = rect.top < verticalThreshold && rect.bottom > -200;
     const horizontallyCritical = rect.left < horizontalThreshold && rect.right > -200;
 
-    return !(verticallyCritical && horizontallyCritical);
+    return verticallyCritical && horizontallyCritical ? "eager" : "lazy";
   }
 
   /**
-   * Checks whether an element is connected to the DOM and has measurable geometry.
-   * @param {Element} el - Element to inspect.
-   * @returns {boolean} True when the element is attached and visible.
+   * Defers a lazy-loading evaluation until the next animation frame.
+   * @param {Element} el - Element scheduled for reevaluation.
+   * @returns {void}
    */
-  function isConnectedAndVisible(el) {
-    if (!el.isConnected) return false;
-    if (typeof el.getClientRects !== "function") return false;
-    const rects = el.getClientRects();
-    return rects.length > 0;
+  function scheduleLazyEvaluation(el) {
+    if (!el || pendingLazyEvaluations.has(el)) {
+      return;
+    }
+
+    pendingLazyEvaluations.add(el);
+    RAF(() => {
+      pendingLazyEvaluations.delete(el);
+      if (!el.isConnected) {
+        lazyEvaluationAttempts.delete(el);
+        managedLazyAttributes.delete(el);
+        return;
+      }
+      applyLazyStrategy(el);
+    });
+  }
+
+  /**
+   * Determines whether an element currently exposes usable layout metrics.
+   * @param {Element} el - Element to evaluate.
+   * @returns {boolean} True when measurable layout boxes exist.
+   */
+  function hasUsableLayout(el) {
+    if (!el || typeof el.getClientRects !== "function") {
+      return false;
+    }
+
+    let rects;
+    try {
+      rects = el.getClientRects();
+    } catch (error) {
+      return false;
+    }
+
+    if (!rects || rects.length === 0) {
+      return false;
+    }
+
+    for (let index = 0; index < rects.length; index += 1) {
+      const rect = rects[index];
+      if (rect && rect.width > 0 && rect.height > 0) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Checks if an element appears hidden via CSS styles.
+   * @param {Element} el - Element to check for visibility overrides.
+   * @returns {boolean} True when the element is intentionally hidden.
+   */
+  function isEffectivelyHidden(el) {
+    if (!el || typeof window === "undefined" || typeof window.getComputedStyle !== "function") {
+      return false;
+    }
+
+    let style;
+    try {
+      style = window.getComputedStyle(el);
+    } catch (error) {
+      return false;
+    }
+
+    if (!style) {
+      return false;
+    }
+
+    return style.display === "none" || style.visibility === "hidden";
+  }
+
+  /**
+   * Determines whether an element should be lazily loaded based on viewport heuristics.
+   * @param {Element} el - Element to evaluate for lazy loading.
+   * @returns {boolean} True when the element can be safely deferred.
+   */
+  function shouldLazy(el) {
+    return computeLazyDecision(el) === "lazy";
   }
 
   /**
@@ -1147,6 +1289,7 @@
       clampDelays,
       formatTimeList,
       formatTime,
+      computeLazyDecision,
       shouldLazy,
       applyPriorityHints,
       getKeepAliveInterval,
