@@ -31,38 +31,12 @@ describe("DNA Shield internals", () => {
 
   test("exposes expected helper surface", () => {
     expect(internals).toMatchObject({
-      parseTimeList: expect.any(Function),
-      clampAnimationDurations: expect.any(Function),
       applyPriorityHints: expect.any(Function),
       getKeepAliveInterval: expect.any(Function),
+      restartKeepAliveTimer: expect.any(Function),
+      stopKeepAliveTimer: expect.any(Function),
       isOnline: expect.any(Function),
     });
-  });
-
-  test("parseTimeList normalizes CSS time tokens", () => {
-    expect(internals.parseTimeList("1s, 250ms, 2.5")).toEqual([1000, 250, 2.5]);
-  });
-
-  test("clampAnimationDurations respects repeated animations", () => {
-    const result = internals.clampAnimationDurations([500, 200, 5000], [1, 2, 1]);
-    expect(result.values).toEqual([180, 200, 180]);
-    expect(result.changed).toBe(true);
-  });
-
-  test("clampDurations enforces maximum threshold", () => {
-    const result = internals.clampDurations([50, 400, 0], 140);
-    expect(result.values).toEqual([50, 140, 0]);
-    expect(result.changed).toBe(true);
-  });
-
-  test("clampDelays enforces motion delay limit", () => {
-    const result = internals.clampDelays([0, 10, 1000]);
-    expect(result.values).toEqual([0, 0, 0]);
-    expect(result.changed).toBe(true);
-  });
-
-  test("formatTimeList produces CSS-compatible values", () => {
-    expect(internals.formatTimeList([100, 10.5])).toBe("100ms, 10.50ms");
   });
 
   test("applyPriorityHints sets attribute fallbacks", () => {
