@@ -39,9 +39,10 @@
   const MOTION_STYLE_ID = "dna-shield-motion";
   const MAX_TRANSITION_DURATION = 140;
   const MAX_ANIMATION_DURATION = 180;
-  const MAX_MOTION_DELAY = 60;
-  const GLOBAL_MOTION_DELAY = Math.min(45, MAX_MOTION_DELAY);
-  const MOTION_TIMING_FUNCTION = "step-end";
+  const MAX_MOTION_DELAY = 0;
+  const GLOBAL_MOTION_DELAY = 0;
+  const MOTION_TIMING_FUNCTION = "linear";
+  const MOTION_OPT_OUT_ATTRIBUTE = "DNA-Shield";
   const ROOT_STYLE_OVERRIDES = [
     ["scroll-behavior", "auto"],
     ["animation-duration", `${MAX_ANIMATION_DURATION}ms`],
@@ -170,14 +171,15 @@
     const animationDuration = formatTime(MAX_ANIMATION_DURATION);
     const transitionDuration = formatTime(MAX_TRANSITION_DURATION);
     const motionDelay = formatTime(GLOBAL_MOTION_DELAY);
+    const optOutSelector = `[${MOTION_OPT_OUT_ATTRIBUTE}]`;
     style.textContent = `
       :root {
         scroll-behavior: auto !important;
       }
 
-      :root :where(*:not([data-dna-keep-motion])),
-      :root :where(*:not([data-dna-keep-motion]))::before,
-      :root :where(*:not([data-dna-keep-motion]))::after {
+      :root :where(*:not(${optOutSelector})),
+      :root :where(*:not(${optOutSelector}))::before,
+      :root :where(*:not(${optOutSelector}))::after {
         animation-duration: ${animationDuration} !important;
         -webkit-animation-duration: ${animationDuration} !important;
         animation-delay: ${motionDelay} !important;
@@ -193,12 +195,12 @@
         scroll-behavior: auto !important;
       }
 
-      [data-dna-keep-motion],
-      [data-dna-keep-motion]::before,
-      [data-dna-keep-motion]::after,
-      [data-dna-keep-motion] :where(*),
-      [data-dna-keep-motion] :where(*)::before,
-      [data-dna-keep-motion] :where(*)::after {
+      ${optOutSelector},
+      ${optOutSelector}::before,
+      ${optOutSelector}::after,
+      ${optOutSelector} :where(*),
+      ${optOutSelector} :where(*)::before,
+      ${optOutSelector} :where(*)::after {
         animation-duration: revert !important;
         -webkit-animation-duration: revert !important;
         animation-delay: revert !important;
@@ -589,7 +591,7 @@
       return;
     }
 
-    if (typeof target.closest === "function" && target.closest("[data-dna-keep-motion]")) {
+    if (typeof target.closest === "function" && target.closest(`[${MOTION_OPT_OUT_ATTRIBUTE}]`)) {
       return;
     }
 
@@ -615,7 +617,7 @@
       return;
     }
 
-    if (typeof target.closest === "function" && target.closest("[data-dna-keep-motion]")) {
+    if (typeof target.closest === "function" && target.closest(`[${MOTION_OPT_OUT_ATTRIBUTE}]`)) {
       return;
     }
 
