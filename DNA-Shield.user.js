@@ -27,6 +27,7 @@
   "use strict";
 
   const LAZY_TAGS = new Set(["IMG", "IFRAME"]);
+  const ENABLE_LAZY_LOADING_OVERRIDE = false;
   const PRIORITY_COMPAT_ATTRIBUTE = "importance";
   const IDLE = window.requestIdleCallback || function fallbackIdle(fn) {
     return window.setTimeout(() => fn({ didTimeout: false, timeRemaining: () => 50 }), 1);
@@ -782,7 +783,7 @@
   }
 
   /**
-   * Applies decoding, lazy-loading, and priority hints to images.
+   * Applies decoding optimizations to images.
    * @param {HTMLImageElement} img - Target image element.
    * @returns {void}
    */
@@ -793,7 +794,9 @@
       img.setAttribute("decoding", "async");
     }
 
-    applyLazyStrategy(img);
+    if (ENABLE_LAZY_LOADING_OVERRIDE) {
+      applyLazyStrategy(img);
+    }
   }
 
   function observeNavigation() {
@@ -961,14 +964,16 @@
   }
 
   /**
-   * Applies lazy-loading and priority hints to iframes.
+   * Preserves iframe loading behavior while allowing future tuning when enabled.
    * @param {HTMLIFrameElement} iframe - Target iframe element.
    * @returns {void}
    */
   function tuneIframe(iframe) {
     if (!iframe.isConnected) return;
 
-    applyLazyStrategy(iframe);
+    if (ENABLE_LAZY_LOADING_OVERRIDE) {
+      applyLazyStrategy(iframe);
+    }
   }
 
   /**
@@ -1009,10 +1014,15 @@
 
   /**
    * Applies lazy-loading preferences with retry support for uncertain layout states.
+   * When lazy-loading overrides are disabled, this function becomes a no-op.
    * @param {Element} el - Target media element.
    * @returns {void}
    */
   function applyLazyStrategy(el) {
+    if (!ENABLE_LAZY_LOADING_OVERRIDE) {
+      return;
+    }
+
     if (!el || !LAZY_TAGS.has(el.tagName)) {
       return;
     }
