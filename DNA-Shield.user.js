@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                DNA Shield
 // @namespace           DNA Shield
-// @version             1.4
+// @version             1.6
 // @author              Last Roze
 // @description         Dominion With Domination
 // @copyright           ©2021 - 2025 // Yoga Budiman
@@ -37,9 +37,20 @@
   const KEEPALIVE_INTERVAL_ACTIVE = 35000;
   const KEEPALIVE_INTERVAL_BACKGROUND = 75000;
   const MOTION_STYLE_ID = "dna-shield-motion";
-  const MAX_TRANSITION_DURATION = 260;
-  const MAX_ANIMATION_DURATION = 420;
-  const MAX_MOTION_DELAY = 120;
+  const MAX_TRANSITION_DURATION = 140;
+  const MAX_ANIMATION_DURATION = 180;
+  const MAX_MOTION_DELAY = 60;
+  const GLOBAL_MOTION_DELAY = Math.min(45, MAX_MOTION_DELAY);
+  const MOTION_TIMING_FUNCTION = "step-end";
+  const ROOT_STYLE_OVERRIDES = [
+    ["scroll-behavior", "auto"],
+    ["animation-duration", `${MAX_ANIMATION_DURATION}ms`],
+    ["animation-delay", `${GLOBAL_MOTION_DELAY}ms`],
+    ["animation-timing-function", MOTION_TIMING_FUNCTION],
+    ["transition-duration", `${MAX_TRANSITION_DURATION}ms`],
+    ["transition-delay", `${GLOBAL_MOTION_DELAY}ms`],
+    ["transition-timing-function", MOTION_TIMING_FUNCTION],
+  ];
 
   let scheduledScanToken = null;
   let keepAliveTimer = 0;
@@ -54,6 +65,10 @@
 
   function bootstrap() {
     installMotionDampener();
+    enforceRootStyles();
+    accelerateDocumentVisibility();
+    disableJQueryAnimations();
+    accelerateWebAnimations();
     optimizeSubtree(document.documentElement);
     observeMutations();
     observeNavigation();
@@ -146,15 +161,408 @@
     }
     const style = document.createElement("style");
     style.id = MOTION_STYLE_ID;
+    const animationDuration = formatTime(MAX_ANIMATION_DURATION);
+    const transitionDuration = formatTime(MAX_TRANSITION_DURATION);
+    const motionDelay = formatTime(GLOBAL_MOTION_DELAY);
     style.textContent = `
       :root {
         scroll-behavior: auto !important;
+      }
+
+      :root :where(*:not([data-dna-keep-motion])),
+      :root :where(*:not([data-dna-keep-motion]))::before,
+      :root :where(*:not([data-dna-keep-motion]))::after {
+        animation-duration: ${animationDuration} !important;
+        animation-delay: ${motionDelay} !important;
+        animation-timing-function: ${MOTION_TIMING_FUNCTION} !important;
+        transition-duration: ${transitionDuration} !important;
+        transition-delay: ${motionDelay} !important;
+        transition-timing-function: ${MOTION_TIMING_FUNCTION} !important;
+        scroll-behavior: auto !important;
+      }
+
+      [data-dna-keep-motion],
+      [data-dna-keep-motion]::before,
+      [data-dna-keep-motion]::after,
+      [data-dna-keep-motion] :where(*),
+      [data-dna-keep-motion] :where(*)::before,
+      [data-dna-keep-motion] :where(*)::after {
+        animation-duration: revert !important;
+        animation-delay: revert !important;
+        animation-timing-function: revert !important;
+        transition-duration: revert !important;
+        transition-delay: revert !important;
+        transition-timing-function: revert !important;
       }
     `;
     (document.head || document.documentElement).appendChild(style);
 
     document.addEventListener("animationstart", handleAnimationStart, true);
     document.addEventListener("transitionrun", handleTransitionRun, true);
+  }
+
+  function disableJQueryAnimations() {
+    const MAX_ATTEMPTS = 8;
+    let attempts = 0;
+
+    const attemptDisable = () => {
+      const jq = resolveJQuery();
+      if (jq && jq.fx) {
+        try {
+          jq.fx.off = true;
+        } catch (error) {
+          // Silently ignore errors from locked down environments.
+        }
+        return;
+      }
+
+      if (attempts < MAX_ATTEMPTS) {
+        attempts += 1;
+        IDLE(attemptDisable);
+      }
+    };
+
+    attemptDisable();
+  }
+
+  function resolveJQuery() {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    if (window.jQuery && typeof window.jQuery === "function") {
+      return window.jQuery;
+    }
+
+    if (typeof window.wrappedJSObject !== "undefined" && window.wrappedJSObject && window.wrappedJSObject.jQuery) {
+      return window.wrappedJSObject.jQuery;
+    }
+
+    return null;
+  }
+
+  function enforceRootStyles() {
+    const root = document.documentElement;
+    if (!root) {
+      return;
+    }
+
+    applyRootStyles(root);
+
+    if (typeof MutationObserver !== "function") {
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      applyRootStyles(root);
+    });
+
+    observer.observe(root, { attributes: true, attributeFilter: ["style"] });
+  }
+
+  function applyRootStyles(root) {
+    if (!root || !root.style) {
+      return;
+    }
+
+    for (const [property, value] of ROOT_STYLE_OVERRIDES) {
+      try {
+        const currentValue = root.style.getPropertyValue(property);
+        const currentPriority = root.style.getPropertyPriority(property);
+        if (currentValue !== value || currentPriority !== "important") {
+          root.style.setProperty(property, value, "important");
+        }
+      } catch (error) {
+        // Silently ignore style access issues.
+      }
+    }
+  }
+
+  function accelerateDocumentVisibility() {
+    const root = document.documentElement;
+    if (!root) {
+      return;
+    }
+
+    neutralizeAsyncHide(root);
+    if (document.body) {
+      neutralizeAsyncHide(document.body);
+    }
+
+    try {
+      const hiddenNodes = root.querySelectorAll(".async-hide");
+      for (const node of hiddenNodes) {
+        neutralizeAsyncHide(node);
+      }
+    } catch (error) {
+      // Ignore selector errors in restricted environments.
+    }
+
+    if (typeof MutationObserver !== "function") {
+      return;
+    }
+
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === "attributes" && mutation.attributeName === "class") {
+          neutralizeAsyncHide(mutation.target);
+        } else if (mutation.type === "childList") {
+          for (const added of mutation.addedNodes) {
+            if (!added || added.nodeType !== Node.ELEMENT_NODE) {
+              continue;
+            }
+
+            neutralizeAsyncHide(added);
+
+            if (typeof added.querySelectorAll === "function") {
+              try {
+                const descendants = added.querySelectorAll(".async-hide");
+                for (const descendant of descendants) {
+                  neutralizeAsyncHide(descendant);
+                }
+              } catch (error) {
+                // Continue even if the selector fails.
+              }
+            }
+          }
+        }
+      }
+    });
+
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+  }
+
+  function neutralizeAsyncHide(target) {
+    if (!target) {
+      return;
+    }
+
+    let removed = false;
+
+    if (target.classList && target.classList.contains("async-hide")) {
+      try {
+        target.classList.remove("async-hide");
+        removed = true;
+      } catch (error) {
+        // Ignore failures when classList is read-only.
+      }
+    }
+
+    if (typeof target.hasAttribute === "function" && target.hasAttribute("data-async-hide")) {
+      try {
+        target.removeAttribute("data-async-hide");
+        removed = true;
+      } catch (error) {
+        // Ignore attribute removal errors.
+      }
+    }
+
+    if (removed && target.style) {
+      tryRemoveAsyncHideStyles(target);
+    }
+  }
+
+  function tryRemoveAsyncHideStyles(target) {
+    try {
+      if (
+        target.style.getPropertyPriority("opacity") === "important" &&
+        target.style.getPropertyValue("opacity") === "0"
+      ) {
+        target.style.removeProperty("opacity");
+      }
+    } catch (error) {
+      // Ignore style access errors for opacity.
+    }
+
+    try {
+      if (
+        target.style.getPropertyPriority("visibility") === "important" &&
+        target.style.getPropertyValue("visibility") === "hidden"
+      ) {
+        target.style.removeProperty("visibility");
+      }
+    } catch (error) {
+      // Ignore style access errors for visibility.
+    }
+  }
+
+  function accelerateWebAnimations() {
+    if (typeof Element === "undefined") {
+      return;
+    }
+
+    const proto = Element.prototype;
+    if (!proto || typeof proto.animate !== "function") {
+      return;
+    }
+
+    if (proto.animate && proto.animate.__dnaShieldPatched) {
+      return;
+    }
+
+    const originalAnimate = proto.animate;
+
+    const patchedAnimate = function patchedAnimate(keyframes, options) {
+      const normalizedOptions = normalizeAnimationOptions(options);
+      const animation = originalAnimate.apply(this, [keyframes, normalizedOptions]);
+      tightenAnimationTiming(animation);
+      return animation;
+    };
+
+    patchedAnimate.__dnaShieldPatched = true;
+
+    try {
+      Object.defineProperty(proto, "animate", {
+        value: patchedAnimate,
+        writable: true,
+        configurable: true,
+      });
+    } catch (error) {
+      try {
+        proto.animate = patchedAnimate;
+      } catch (assignmentError) {
+        // Ignore assignment failures silently.
+      }
+    }
+  }
+
+  function normalizeAnimationOptions(input) {
+    if (typeof input === "number") {
+      return Math.min(input, MAX_ANIMATION_DURATION);
+    }
+
+    if (!input || typeof input !== "object") {
+      return input;
+    }
+
+    if (
+      typeof window !== "undefined" &&
+      typeof window.KeyframeEffect === "function" &&
+      input instanceof window.KeyframeEffect
+    ) {
+      tightenKeyframeTiming(input);
+      return input;
+    }
+
+    const clone = Array.isArray(input) ? input.slice() : { ...input };
+
+    if ("duration" in clone && Number.isFinite(clone.duration) && clone.duration > MAX_ANIMATION_DURATION) {
+      clone.duration = MAX_ANIMATION_DURATION;
+    }
+
+    if ("delay" in clone && Number.isFinite(clone.delay) && clone.delay > MAX_MOTION_DELAY) {
+      clone.delay = MAX_MOTION_DELAY;
+    }
+
+    if ("endDelay" in clone && Number.isFinite(clone.endDelay) && clone.endDelay > MAX_MOTION_DELAY) {
+      clone.endDelay = MAX_MOTION_DELAY;
+    }
+
+    return clone;
+  }
+
+  function tightenAnimationTiming(animation) {
+    if (!animation || typeof animation !== "object") {
+      return;
+    }
+
+    const effect = animation.effect;
+    if (!effect || typeof effect.getTiming !== "function" || typeof effect.updateTiming !== "function") {
+      return;
+    }
+
+    let timing;
+    try {
+      timing = effect.getTiming();
+    } catch (error) {
+      return;
+    }
+
+    if (!timing || typeof timing !== "object") {
+      return;
+    }
+
+    const nextTiming = { ...timing };
+    let changed = false;
+
+    if (
+      Number.isFinite(nextTiming.duration) &&
+      nextTiming.duration > MAX_ANIMATION_DURATION &&
+      (!Number.isFinite(nextTiming.iterations) || nextTiming.iterations <= 1)
+    ) {
+      nextTiming.duration = MAX_ANIMATION_DURATION;
+      changed = true;
+    }
+
+    if (Number.isFinite(nextTiming.delay) && nextTiming.delay > MAX_MOTION_DELAY) {
+      nextTiming.delay = MAX_MOTION_DELAY;
+      changed = true;
+    }
+
+    if (Number.isFinite(nextTiming.endDelay) && nextTiming.endDelay > MAX_MOTION_DELAY) {
+      nextTiming.endDelay = MAX_MOTION_DELAY;
+      changed = true;
+    }
+
+    if (changed) {
+      try {
+        effect.updateTiming(nextTiming);
+      } catch (error) {
+        // Ignore timing update failures.
+      }
+    }
+  }
+
+  function tightenKeyframeTiming(effect) {
+    if (!effect || typeof effect.getTiming !== "function" || typeof effect.updateTiming !== "function") {
+      return;
+    }
+
+    let timing;
+    try {
+      timing = effect.getTiming();
+    } catch (error) {
+      return;
+    }
+
+    if (!timing || typeof timing !== "object") {
+      return;
+    }
+
+    const nextTiming = { ...timing };
+    let changed = false;
+
+    if (
+      Number.isFinite(nextTiming.duration) &&
+      nextTiming.duration > MAX_ANIMATION_DURATION &&
+      (!Number.isFinite(nextTiming.iterations) || nextTiming.iterations <= 1)
+    ) {
+      nextTiming.duration = MAX_ANIMATION_DURATION;
+      changed = true;
+    }
+
+    if (Number.isFinite(nextTiming.delay) && nextTiming.delay > MAX_MOTION_DELAY) {
+      nextTiming.delay = MAX_MOTION_DELAY;
+      changed = true;
+    }
+
+    if (Number.isFinite(nextTiming.endDelay) && nextTiming.endDelay > MAX_MOTION_DELAY) {
+      nextTiming.endDelay = MAX_MOTION_DELAY;
+      changed = true;
+    }
+
+    if (changed) {
+      try {
+        effect.updateTiming(nextTiming);
+      } catch (error) {
+        // Ignore timing update failures.
+      }
+    }
   }
 
   function handleAnimationStart(event) {
