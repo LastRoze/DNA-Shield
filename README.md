@@ -4,15 +4,13 @@ Dominion With Domination
 
 ## Features
 
-- Automatically hints browsers to decode images asynchronously for faster first paint.
-- Applies modern priority hints so above-the-fold images and iframes stream early without extra configuration.
-- Dampens excessive animations and transitions by clamping their run time while allowing critical or repeated motion to continue normally. Developers can opt a subtree out by adding a `DNA-Shield` attribute.
-- Light-touch media tuning that limits video and audio preloading to metadata unless explicitly required by the site.
-- Keeps optimizations active across navigation events and single-page-app route changes without configuration.
-- Sends low-overhead keepalive pings so sites treat the session as active without simulating user movement.
-- Runs on every site without menus, overlays, or per-domain configuration so the acceleration feels native.
+- Forces a zero-duration experience by clamping animation and transition delays, durations, and timing functions on the `<html>` element and all descendants.
+- Removes `async-hide` classes from the document root so hidden content becomes visible immediately.
+- Disables jQuery-powered animations by flipping the `fx.off` flag when jQuery is present (including on wrapped windows).
+- Sets instant scroll behavior across the page to eliminate smooth scrolling effects.
+- Injects a global stylesheet that applies the same constraints to every element, pseudo-element, and animation hook.
 
 ## Usage
 
 1. Install `DNA-Shield.user.js` in Tampermonkey.
-2. Browse normally—the optimizations apply automatically on every page.
+2. Browse normally—every page will open without animations, transitions, or smooth scrolling.

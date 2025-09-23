@@ -1,94 +1,69 @@
+
 const fs = require("fs");
 const path = require("path");
 
-describe("DNA Shield internals", () => {
-  let internals;
-  let originalSetInterval;
-  let originalClearInterval;
-  let originalVisibilityDescriptor;
+const scriptPath = path.join(__dirname, "..", "DNA-Shield.user.js");
 
-  beforeAll(() => {
-    originalSetInterval = window.setInterval;
-    originalClearInterval = window.clearInterval;
-    window.setInterval = jest.fn(() => 1);
-    window.clearInterval = jest.fn();
-    navigator.sendBeacon = jest.fn(() => true);
+function runScript() {
+  const scriptContent = fs.readFileSync(scriptPath, "utf8");
+  eval(scriptContent);
+}
 
-    const scriptContent = fs.readFileSync(path.join(__dirname, "..", "DNA-Shield.user.js"), "utf8");
-    // Evaluate the userscript inside the jsdom environment.
-    eval(scriptContent);
-    internals = window.__DNA_SHIELD_INTERNALS__;
+describe("DNA Shield userscript", () => {
+  beforeEach(() => {
+    document.documentElement.removeAttribute("style");
+    document.documentElement.className = "";
+    document.head.innerHTML = "";
+    document.body.innerHTML = "";
+    delete window.seconds;
+    delete window.jQuery;
+    delete window.wrappedJSObject;
   });
 
-  afterAll(() => {
-    internals.stopKeepAliveTimer();
-    window.setInterval = originalSetInterval;
-    window.clearInterval = originalClearInterval;
-    if (originalVisibilityDescriptor) {
-      Object.defineProperty(document, "visibilityState", originalVisibilityDescriptor);
-    }
+  test("sets a negative seconds flag and strips async-hide", () => {
+    document.documentElement.classList.add("async-hide");
+    document.documentElement.setAttribute("style", "color: red;");
+
+    runScript();
+
+    expect(window.seconds).toBe(-1);
+    expect(document.documentElement.classList.contains("async-hide")).toBe(false);
+
+    const htmlStyle = document.documentElement.getAttribute("style");
+    expect(htmlStyle).toEqual(expect.stringContaining("-webkit-animation-timing-function: step-end !important;"));
+    expect(htmlStyle).toEqual(expect.stringContaining("animation-delay: -1ms !important;"));
+    expect(htmlStyle).toEqual(expect.stringContaining("animation-duration: -1ms !important;"));
+    expect(htmlStyle).toEqual(expect.stringContaining("animation-timing-function: step-end !important;"));
+    expect(htmlStyle).toEqual(expect.stringContaining("scroll-behavior: auto !important;"));
+    expect(htmlStyle).toEqual(expect.stringContaining("transition-delay: -1ms !important;"));
+    expect(htmlStyle).toEqual(expect.stringContaining("transition-duration: -1ms !important;"));
+    expect(htmlStyle).toEqual(expect.stringContaining("transition-timing-function: step-end !important;"));
   });
 
-  test("exposes expected helper surface", () => {
-    expect(internals).toMatchObject({
-      applyPriorityHints: expect.any(Function),
-      getKeepAliveInterval: expect.any(Function),
-      restartKeepAliveTimer: expect.any(Function),
-      stopKeepAliveTimer: expect.any(Function),
-      isOnline: expect.any(Function),
-    });
+  test("disables jQuery animations when present", () => {
+    window.jQuery = { fx: { off: false } };
+
+    runScript();
+
+    expect(window.jQuery.fx.off).toBe(true);
   });
 
-  test("applyPriorityHints sets attribute fallbacks", () => {
-    const element = document.createElement("img");
-    Object.defineProperty(element, "fetchPriority", {
-      configurable: true,
-      get() {
-        return this._priority || "auto";
-      },
-      set(value) {
-        this._priority = value;
-      },
-    });
+  test("disables wrapped jQuery animations when only wrappedJSObject is defined", () => {
+    window.wrappedJSObject = { jQuery: { fx: { off: false } } };
 
-    internals.applyPriorityHints(element, "high");
+    runScript();
 
-    expect(element.fetchPriority).toBe("high");
-    expect(element.getAttribute("fetchpriority")).toBe("high");
-    expect(element.getAttribute("importance")).toBe("high");
+    expect(window.wrappedJSObject.jQuery.fx.off).toBe(true);
   });
 
-  test("getKeepAliveInterval reacts to visibility state", () => {
-    originalVisibilityDescriptor = Object.getOwnPropertyDescriptor(document, "visibilityState");
-    Object.defineProperty(document, "visibilityState", {
-      configurable: true,
-      get: () => "hidden",
-    });
+  test("injects global style overrides", () => {
+    runScript();
 
-    expect(internals.getKeepAliveInterval()).toBe(75000);
-  });
+    const styles = Array.from(document.head.querySelectorAll("style"));
+    const style = styles.find((el) => el.textContent.includes("*,*::before,*::after"));
 
-  test("restartKeepAliveTimer wires up timers and stop clears them", () => {
-    const sender = jest.fn();
-    internals.restartKeepAliveTimer(sender);
-
-    expect(window.setInterval).toHaveBeenCalledWith(sender, expect.any(Number));
-
-    internals.stopKeepAliveTimer();
-    expect(window.clearInterval).toHaveBeenCalledWith(1);
-  });
-
-  test("isOnline defers to navigator state", () => {
-    Object.defineProperty(navigator, "onLine", {
-      configurable: true,
-      value: false,
-    });
-    expect(internals.isOnline()).toBe(false);
-
-    Object.defineProperty(navigator, "onLine", {
-      configurable: true,
-      value: true,
-    });
-    expect(internals.isOnline()).toBe(true);
+    expect(style).toBeDefined();
+    expect(style.textContent).toEqual(expect.stringContaining("-webkit-animation-timing-function: step-end !important;"));
+    expect(style.textContent).toEqual(expect.stringContaining("transition-timing-function: step-end !important;"));
   });
 });
