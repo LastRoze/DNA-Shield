@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         DNA Shield
 // @namespace    DNA Shield
-// @version      2.0
+// @version      2.1
 // @author       Last Roze
-// @description  Dominion With Domination — Universal Zero-Grant Instant UI Engine
+// @description  Dominion With Domination — Universal Zero-Grant Instant UI Engine (event-safe)
 // @copyright    ©2020-2026 Yoga Budiman
 // @homepage     https://github.com/LastRoze/
 // @homepageURL  https://github.com/LastRoze/
@@ -11,9 +11,6 @@
 // @source       https://github.com/LastRoze/DNA-Shield
 // @icon         https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
 // @iconURL      https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
-// @defaulticon  https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
-// @icon64       https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
-// @icon64URL    https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
 // @updateURL    https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.meta.js
 // @downloadURL  https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.user.js
 // @supportURL   https://lastroze.github.io/
@@ -25,612 +22,506 @@
 (function DNA_SHIELD() {
 
     'use strict';
+    const VERSION = '2.4';
+    const STYLE_ID = '__DNA_SHIELD_2.1__';
 
-    /*
-     * ==========================================================
-     * DNA SHIELD 5.0
-     * ==========================================================
-     *
-     * UNIVERSAL / ZERO-GRANT / SAFE-FIRST
-     *
-     * PRIMARY OBJECTIVE:
-     *
-     *      Remove artificial VISUAL TIME.
-     *
-     * SECONDARY OBJECTIVE:
-     *
-     *      Make the result as close to instantaneous as the
-     *      browser/application itself permits.
-     *
-     * HARD COMPATIBILITY RULE:
-     *
-     *      NEVER interfere with application execution.
-     *
-     * Therefore this script DOES NOT replace or modify:
-     *
-     *      setTimeout
-     *      setInterval
-     *      requestAnimationFrame
-     *      Promise
-     *      fetch
-     *      XMLHttpRequest
-     *      WebSocket
-     *      Worker
-     *      ServiceWorker
-     *      IndexedDB
-     *      EventTarget
-     *      addEventListener
-     *      dispatchEvent
-     *      click
-     *      submit
-     *      forms
-     *      history
-     *      Element.prototype.animate
-     *      attachShadow
-     *      framework internals
-     *      React
-     *      Vue
-     *      Angular
-     *
-     * It also DOES NOT:
-     *
-     *      remove classes
-     *      remove hidden attributes
-     *      modify aria state
-     *      modify application state
-     *      force lazy loading
-     *      alter network behavior
-     *      alter server requests
-     *
-     * The entire optimization is deliberately concentrated
-     * in CSS and CSS injection.
-     *
-     * ==========================================================
-     */
+    /* ==========================================================
+     * CONFIGURATION
+     * ========================================================== */
 
-    const VERSION = '5.0';
-    const STYLE_ID = '__DNA_SHIELD_5__';
+    const CONFIG = {
 
-    /*
-     * Preserve compatibility with the original script.
-     */
+        /*
+         * Playback multiplier for INFINITE animations (spinners,
+         * pulses, marquees). 1 = leave them exactly as authored.
+         * Try 4 if you want them visibly faster. Values above ~10
+         * can generate a lot of animationiteration events.
+         */
+        loopSpeed: 1,
+
+        /*
+         * Finite animations/transitions longer than this many
+         * milliseconds are finished immediately. 0 = all of them.
+         */
+        minDurationMs: 0,
+
+        /* Collapse animation-delay / transition-delay to zero. */
+        zeroDelays: true,
+
+        /* Disable smooth scrolling. */
+        instantScroll: true,
+
+        /*
+         * Also fast-forward animations created in JavaScript via
+         * element.animate(). These fire no animationstart event, so
+         * catching them needs a light periodic sweep. Off by default.
+         */
+        accelerateScriptedAnimations: false,
+
+        /* Sweep interval (ms) used only when the option above is on. */
+        sweepIntervalMs: 400,
+
+        /*
+         * Hosts where DNA Shield stays completely out of the way.
+         * Subdomains are matched automatically.
+         */
+        disabledHosts: [
+            // 'meet.google.com',
+            // 'figma.com'
+        ]
+
+    };
+
+    /* ==========================================================
+     * PER-SITE KILL SWITCH
+     * ==========================================================
+     *
+     * localStorage flag, so it survives reloads without any @grant.
+     * Toggle at runtime with Ctrl+Alt+Shift+D, or from the console:
+     *
+     *      DNAShield.disableHere()
+     *      DNAShield.enableHere()
+     *
+     * ========================================================== */
+
+    const OFF_KEY = '__DNA_SHIELD_OFF__';
+
+    function hostDisabled() {
+        try {
+            const h = location.hostname;
+            return CONFIG.disabledHosts.some(function (d) {
+                return h === d || h.endsWith('.' + d);
+            });
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function userDisabled() {
+        try {
+            return localStorage.getItem(OFF_KEY) === '1';
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function setDisabled(v) {
+        try {
+            if (v) {
+                localStorage.setItem(OFF_KEY, '1');
+            } else {
+                localStorage.removeItem(OFF_KEY);
+            }
+            location.reload();
+        } catch (_) {}
+    }
+
+    const ACTIVE = !hostDisabled() && !userDisabled();
+
+    /* ==========================================================
+     * PUBLIC STATE
+     * ========================================================== */
+
     try {
         window.__DNA_SHIELD__ = true;
         window.__DNA_SHIELD_VERSION__ = VERSION;
         window.__DNA_SHIELD_SAFE__ = true;
-        window.seconds = -1;
+        /*
+         * NOTE: `window.seconds = -1` from older versions was removed.
+         * It polluted a very common global name and could break
+         * countdown / timer scripts on unrelated pages.
+         */
     } catch (_) {}
 
-    /*
+    /* ==========================================================
+     * CSS — EVENT-NEUTRAL PARTS ONLY
      * ==========================================================
-     * MASTER CSS
-     * ==========================================================
      *
-     * This is the core of DNA Shield.
+     * Zeroing a DELAY is safe: the transition or animation still
+     * runs and still fires its full event sequence, it just starts
+     * immediately. Zeroing a DURATION is what suppresses the events,
+     * so durations are handled in JavaScript instead.
      *
-     * No JavaScript application behavior is changed here.
-     *
-     * IMPORTANT:
-     *
-     * 0s is used instead of negative durations.
-     * Negative animation/transition durations are not a valid
-     * universal way to express zero duration.
-     *
-     * ==========================================================
-     */
+     * ========================================================== */
 
-    const CSS = `
-/* ==========================================================
-   DNA SHIELD 5.0
-   UNIVERSAL INSTANT VISUAL ENGINE
-   ========================================================== */
+    let CSS = '';
 
-
-/*
- * ----------------------------------------------------------
- * GLOBAL TRANSITION ELIMINATION
- * ----------------------------------------------------------
- *
- * !important is intentional.
- *
- * A site's own transition declarations should not be able
- * to reintroduce visual latency.
- */
-
+    if (CONFIG.zeroDelays) {
+        CSS += `
 html *,
 html *::before,
 html *::after {
-
     animation-delay: 0s !important;
-    animation-duration: 0s !important;
-    animation-timing-function: step-end !important;
-
-    -webkit-animation-delay: 0s !important;
-    -webkit-animation-duration: 0s !important;
-    -webkit-animation-timing-function: step-end !important;
-
     transition-delay: 0s !important;
-    transition-duration: 0s !important;
-    transition-timing-function: step-end !important;
-
+    -webkit-animation-delay: 0s !important;
     -webkit-transition-delay: 0s !important;
-    -webkit-transition-duration: 0s !important;
-    -webkit-transition-timing-function: step-end !important;
 }
+`;
+    }
 
-
-/*
- * ----------------------------------------------------------
- * GLOBAL SCROLL SPEED
- * ----------------------------------------------------------
- *
- * Smooth scrolling is a visual interpolation mechanism.
- *
- * JavaScript scroll functions themselves remain untouched.
- */
-
+    if (CONFIG.instantScroll) {
+        CSS += `
 html,
 body {
-
     scroll-behavior: auto !important;
 }
-
-
-/*
- * ----------------------------------------------------------
- * COMMON FRAMEWORK TRANSITIONS
- * ----------------------------------------------------------
- *
- * We DO NOT remove these classes.
- *
- * Frameworks can use the classes as state.
- *
- * We only remove their visual duration.
- * ----------------------------------------------------------
- */
-
-
-/* Vue */
-.v-enter-active,
-.v-leave-active,
-.v-move,
-.v-enter,
-.v-leave-to,
-
-/* Angular */
-.ng-enter,
-.ng-leave,
-.ng-move,
-.ng-enter-active,
-.ng-leave-active,
-.ng-move-active,
-
-/* React / generic */
-.fade,
-.fade-in,
-.fade-out,
-.fadeIn,
-.fadeOut,
-
-.slide,
-.slide-in,
-.slide-out,
-.slideIn,
-.slideOut,
-
-.zoom,
-.zoom-in,
-.zoom-out,
-.zoomIn,
-.zoomOut,
-
-/* Generic router transitions */
-.router-transition,
-.router-transition-enter,
-.router-transition-active,
-.router-transition-leave,
-
-/* Common UI transitions */
-.modal,
-.modal *,
-.dialog,
-.dialog *,
-.drawer,
-.drawer *,
-.offcanvas,
-.offcanvas * {
-
-    animation-delay: 0s !important;
-    animation-duration: 0s !important;
-    transition-delay: 0s !important;
-    transition-duration: 0s !important;
-}
-
-
-/*
- * ----------------------------------------------------------
- * COMMON VISUAL LOADING ANIMATIONS
- * ----------------------------------------------------------
- *
- * This does NOT hide or remove loaders.
- *
- * It merely prevents the loader from animating for seconds.
- */
-
-.spinner,
-.spinner *,
-.loader-animation,
-.loader-animation *,
-.loading-animation,
-.loading-animation *,
-.progress-animation,
-.progress-animation * {
-
-    animation-delay: 0s !important;
-    animation-duration: 0s !important;
-}
-
-
-/*
- * ----------------------------------------------------------
- * DIALOG / MODAL TRANSITIONS
- * ----------------------------------------------------------
- */
-
-dialog,
-[role="dialog"],
-[aria-modal="true"] {
-
-    animation-delay: 0s !important;
-    animation-duration: 0s !important;
-
-    transition-delay: 0s !important;
-    transition-duration: 0s !important;
-}
-
-
-/*
- * ----------------------------------------------------------
- * CARET ANIMATION
- * ----------------------------------------------------------
- *
- * Only affects visual caret behavior.
- */
-
-html * {
-
-    caret-animation: manual !important;
-}
-
-
-/*
- * ----------------------------------------------------------
- * CSS VIEW TRANSITIONS API
- * ----------------------------------------------------------
- *
- * Modern browsers can animate entire document transitions.
- *
- * Disable their visual transition while leaving the API itself
- * untouched.
- */
-
-::view-transition-old(*),
-::view-transition-new(*) {
-
-    animation-duration: 0s !important;
-    animation-delay: 0s !important;
-}
-
-
-/*
- * ----------------------------------------------------------
- * REDUCED MOTION COMPATIBILITY
- * ----------------------------------------------------------
- */
-
-@media (prefers-reduced-motion: reduce) {
-
-    html *,
-    html *::before,
-    html *::after {
-
-        animation: none !important;
-        transition: none !important;
-        scroll-behavior: auto !important;
-    }
-}
-
-
-/*
- * ----------------------------------------------------------
- * DOCUMENT VIEW TRANSITION ROOT
- * ----------------------------------------------------------
- */
-
-::view-transition-group(*),
-::view-transition-image-pair(*),
-::view-transition-old(*),
-::view-transition-new(*) {
-
-    animation-duration: 0s !important;
-    animation-delay: 0s !important;
-    transition-duration: 0s !important;
-    transition-delay: 0s !important;
-}
-
 `;
+    }
 
     /*
-     * ==========================================================
-     * INSTALL CSS
-     * ==========================================================
-     *
-     * No GM_addStyle.
-     * No privileged APIs.
-     * No grants.
-     *
-     * ==========================================================
+     * Legacy fallback only. On engines without the Web Animations
+     * API we cannot fast-forward anything, so we shorten durations
+     * instead — but to 1ms, never 0s, so the events still fire.
      */
+    const WAAPI =
+        typeof Element !== 'undefined' &&
+        typeof Element.prototype.getAnimations === 'function';
 
-    let installed = false;
+    if (!WAAPI) {
+        CSS += `
+html *,
+html *::before,
+html *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+    -webkit-animation-duration: 1ms !important;
+    -webkit-transition-duration: 1ms !important;
+}
+`;
+    }
+
+    /* ==========================================================
+     * STYLE INSTALLATION
+     * ========================================================== */
+
+    let styleEl = null;
 
     function install() {
-
-        if (installed) {
+        if (!ACTIVE || !CSS) {
             return;
         }
-
         try {
-
-            /*
-             * Prevent duplicate installation.
-             */
-            if (
-                document.getElementById(
-                    STYLE_ID
-                )
-            ) {
-                installed = true;
+            if (styleEl && styleEl.isConnected) {
                 return;
             }
-
-            const style =
-                document.createElement(
-                    'style'
-                );
-
-            style.id =
-                STYLE_ID;
-
-            style.type =
-                'text/css';
-
-            style.textContent =
-                CSS;
-
-            /*
-             * At document-start <head> may not exist.
-             *
-             * The documentElement is already enough for the CSS
-             * engine to process the stylesheet.
-             */
-            const parent =
-                document.head ||
-                document.documentElement;
-
-            if (!parent) {
-                return;
+            if (!styleEl) {
+                const existing = document.getElementById(STYLE_ID);
+                if (existing) {
+                    styleEl = existing;
+                } else {
+                    styleEl = document.createElement('style');
+                    styleEl.id = STYLE_ID;
+                    styleEl.textContent = CSS;
+                }
             }
-
-            parent.appendChild(style);
-
-            installed = true;
-
+            const parent = document.head || document.documentElement;
+            if (parent) {
+                parent.appendChild(styleEl);
+            }
         } catch (_) {
-
-            /*
-             * DNA Shield must fail silently.
-             *
-             * If anything unexpected occurs, the website must
-             * continue executing normally.
-             */
-
+            /* Fail silently. The page must keep working. */
         }
-
     }
-
-    /*
-     * ==========================================================
-     * FIRST ACTION
-     * ==========================================================
-     */
 
     install();
 
-    /*
-     * ==========================================================
-     * HEAD RECOVERY
-     * ==========================================================
-     *
-     * Some frameworks rebuild <head>.
-     *
-     * We wait for the DOM to exist, then make sure our stylesheet
-     * still exists.
-     *
-     * We do NOT continuously modify the entire document.
-     * ==========================================================
-     */
+    /* ==========================================================
+     * ANIMATION ACCELERATION (the actual engine)
+     * ========================================================== */
 
-    function recover() {
+    const seen =
+        typeof WeakSet === 'function' ? new WeakSet() : null;
+
+    function accelerate(anim) {
+
+        if (!anim) {
+            return;
+        }
 
         try {
-
-            if (
-                !document.getElementById(
-                    STYLE_ID
-                )
-            ) {
-
-                installed = false;
-
-                install();
+            if (seen) {
+                if (seen.has(anim)) {
+                    return;
+                }
+                seen.add(anim);
             }
+        } catch (_) {
+            return;
+        }
 
-        } catch (_) {}
-    }
+        let timing = null;
 
-    /*
-     * ==========================================================
-     * MINIMAL DOM OBSERVER
-     * ==========================================================
-     *
-     * Important:
-     *
-     * We observe ONLY childList.
-     *
-     * We do NOT monitor:
-     *
-     *      class
-     *      style
-     *      attributes
-     *
-     * because React/Vue/Angular can update thousands of those
-     * per second. Observing them universally would itself add
-     * performance overhead and can create feedback loops.
-     *
-     * ==========================================================
-     */
+        try {
+            if (anim.effect && typeof anim.effect.getComputedTiming === 'function') {
+                timing = anim.effect.getComputedTiming();
+            }
+        } catch (_) {
+            return;
+        }
 
-    function startObserver() {
-
-        if (
-            typeof MutationObserver !==
-            'function'
-        ) {
+        if (!timing) {
             return;
         }
 
         try {
 
-            const observer =
-                new MutationObserver(
-                    () => {
+            const endTime = Number(timing.endTime);
 
-                        /*
-                         * Do not perform a full DOM scan.
-                         *
-                         * Just make sure DNA's stylesheet still
-                         * exists.
-                         */
-                        recover();
+            const infinite =
+                timing.iterations === Infinity ||
+                !isFinite(endTime) ||
+                !isFinite(Number(timing.activeDuration));
 
+            /*
+             * Looping animation: it never blocks anything, so it is
+             * never finished — that would freeze the spinner and could
+             * fire an unexpected animationend. Only the playback rate
+             * is touched, and only if asked for.
+             */
+            if (infinite) {
+                if (CONFIG.loopSpeed > 1) {
+                    if (typeof anim.updatePlaybackRate === 'function') {
+                        anim.updatePlaybackRate(CONFIG.loopSpeed);
+                    } else {
+                        anim.playbackRate = CONFIG.loopSpeed;
                     }
-                );
-
-            observer.observe(
-                document.documentElement ||
-                document,
-                {
-                    childList: true,
-                    subtree: true
                 }
-            );
+                return;
+            }
 
-        } catch (_) {}
+            /*
+             * Paused / idle animations belong to the application's own
+             * state machine (scrubbed progress bars, gesture-driven
+             * drawers). Finishing them would change behaviour, not just
+             * timing, so they are left alone.
+             */
+            const state = anim.playState;
+            if (state !== 'running') {
+                return;
+            }
 
+            if (endTime <= CONFIG.minDurationMs) {
+                return;
+            }
+
+            /*
+             * finish() completes the animation AND dispatches
+             * transitionend / animationend. This is the whole point:
+             * the visual time disappears, the event contract survives.
+             */
+            anim.finish();
+
+        } catch (_) {
+            /*
+             * finish() throws for a few exotic effects. Nothing to do —
+             * the animation simply plays normally.
+             */
+        }
+    }
+
+    function accelerateTarget(target) {
+        if (!target || typeof target.getAnimations !== 'function') {
+            return;
+        }
+        let list;
+        try {
+            list = target.getAnimations();
+        } catch (_) {
+            return;
+        }
+        for (let i = 0; i < list.length; i++) {
+            accelerate(list[i]);
+        }
+    }
+
+    function onAnimationEvent(e) {
+        accelerateTarget(e.target);
     }
 
     /*
-     * ==========================================================
-     * START OBSERVER AFTER BOOTSTRAP
-     * ==========================================================
-     *
-     * Critical compatibility decision:
-     *
-     * CSS starts immediately.
-     *
-     * Observer waits until DOMContentLoaded.
-     *
-     * Therefore DNA Shield does not compete with application
-     * bootstrap work.
-     * ==========================================================
+     * transitionrun fires before the delay elapses, animationstart at
+     * the first frame. Catching these means we only ever touch elements
+     * that genuinely animate — no cost on pages that do not.
      */
+    function hookEvents() {
+        if (!ACTIVE || !WAAPI) {
+            return;
+        }
+        const types = [
+            'animationstart',
+            'transitionrun',
+            'transitionstart'
+        ];
+        for (let i = 0; i < types.length; i++) {
+            try {
+                document.addEventListener(
+                    types[i],
+                    onAnimationEvent,
+                    { capture: true, passive: true }
+                );
+            } catch (_) {}
+        }
+    }
 
-    try {
+    hookEvents();
 
-        if (
-            document.readyState ===
-            'loading'
-        ) {
-
-            document.addEventListener(
-                'DOMContentLoaded',
-                startObserver,
-                {
-                    once: true,
-                    passive: true
+    /*
+     * One-shot sweeps, in case the script was injected late or an
+     * animation started inside a shadow root whose events did not
+     * reach us.
+     */
+    function sweep() {
+        if (!ACTIVE || !WAAPI) {
+            return;
+        }
+        try {
+            if (typeof document.getAnimations === 'function') {
+                const list = document.getAnimations();
+                for (let i = 0; i < list.length; i++) {
+                    accelerate(list[i]);
                 }
-            );
+            }
+        } catch (_) {}
+    }
 
-        } else {
+    /* ==========================================================
+     * STYLESHEET RECOVERY
+     * ==========================================================
+     *
+     * Some frameworks rebuild <head>. The old version observed the
+     * whole document with subtree:true and ran a getElementById on
+     * every single mutation — that is real CPU cost inside a heavy
+     * editor. We now watch only the two nodes that can actually drop
+     * our stylesheet, without subtree, and test isConnected.
+     *
+     * ========================================================== */
 
-            startObserver();
+    function startObserver() {
 
+        if (!ACTIVE || !CSS) {
+            return;
         }
 
-    } catch (_) {}
+        if (typeof MutationObserver !== 'function') {
+            return;
+        }
 
-    /*
-     * ==========================================================
-     * POST-LOAD RECOVERY
-     * ==========================================================
-     */
+        try {
+
+            const observer = new MutationObserver(function () {
+                if (!styleEl || !styleEl.isConnected) {
+                    install();
+                }
+            });
+
+            if (document.documentElement) {
+                observer.observe(document.documentElement, { childList: true });
+            }
+            if (document.head) {
+                observer.observe(document.head, { childList: true });
+            }
+
+        } catch (_) {}
+    }
+
+    function onReady() {
+        install();
+        startObserver();
+        sweep();
+    }
 
     try {
-
-        window.addEventListener(
-            'load',
-            recover,
-            {
-                once: true,
-                passive: true
-            }
-        );
-
+        if (document.readyState === 'loading') {
+            document.addEventListener(
+                'DOMContentLoaded',
+                onReady,
+                { once: true, passive: true }
+            );
+        } else {
+            onReady();
+        }
     } catch (_) {}
 
-    /*
-     * ==========================================================
-     * PUBLIC STATE
-     * ==========================================================
-     */
+    try {
+        window.addEventListener(
+            'load',
+            function () {
+                install();
+                sweep();
+            },
+            { once: true, passive: true }
+        );
+    } catch (_) {}
+
+    /* ==========================================================
+     * OPTIONAL SWEEP FOR SCRIPTED (element.animate) ANIMATIONS
+     * ========================================================== */
+
+    let sweepTimer = null;
+
+    if (ACTIVE && WAAPI && CONFIG.accelerateScriptedAnimations) {
+        try {
+            sweepTimer = setInterval(function () {
+                if (document.visibilityState === 'hidden') {
+                    return;
+                }
+                sweep();
+            }, CONFIG.sweepIntervalMs);
+        } catch (_) {}
+    }
+
+    /* ==========================================================
+     * HOTKEY: Ctrl + Alt + Shift + D
+     * ========================================================== */
+
+    try {
+        window.addEventListener('keydown', function (e) {
+            if (e.ctrlKey && e.altKey && e.shiftKey &&
+                (e.key === 'D' || e.key === 'd')) {
+                setDisabled(ACTIVE);
+            }
+        }, { capture: true, passive: true });
+    } catch (_) {}
+
+    /* ==========================================================
+     * PUBLIC API
+     * ========================================================== */
 
     try {
 
         window.DNAShield = {
 
             version: VERSION,
-
-            enabled: true,
-
-            mode:
-                'universal-safe-instant-ui',
+            enabled: ACTIVE,
+            mode: 'waapi-fast-forward',
 
             zeroGrant: true,
-
             applicationSafe: true,
 
             patchesBrowserAPIs: false,
-
             patchesTimers: false,
-
             patchesNetwork: false,
-
             patchesEvents: false,
-
             patchesFrameworks: false,
+            patchesForms: false,
 
-            patchesForms: false
+            config: CONFIG,
+
+            /* Manually fast-forward everything currently animating. */
+            sweep: sweep,
+
+            /* Fast-forward one element's animations. */
+            accelerate: accelerateTarget,
+
+            disableHere: function () { setDisabled(true); },
+            enableHere:  function () { setDisabled(false); },
+
+            stopSweep: function () {
+                if (sweepTimer) {
+                    clearInterval(sweepTimer);
+                    sweepTimer = null;
+                }
+            }
 
         };
 
