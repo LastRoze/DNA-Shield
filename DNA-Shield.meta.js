@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         DNA Shield
 // @namespace    DNA Shield
-// @version      2.0
+// @version      2.1
 // @author       Last Roze
-// @description  Dominion With Domination — Universal Zero-Grant Instant UI Engine
+// @description  Dominion With Domination — Universal Zero-Grant Instant UI Engine (event-safe)
 // @copyright    ©2020-2026 Yoga Budiman
 // @homepage     https://github.com/LastRoze/
 // @homepageURL  https://github.com/LastRoze/
@@ -11,9 +11,6 @@
 // @source       https://github.com/LastRoze/DNA-Shield
 // @icon         https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
 // @iconURL      https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
-// @defaulticon  https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
-// @icon64       https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
-// @icon64URL    https://github.com/LastRoze/DNA-Shield/blob/master/DNA.jpg?raw=true
 // @updateURL    https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.meta.js
 // @downloadURL  https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.user.js
 // @supportURL   https://lastroze.github.io/
