@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         DNA Shield
 // @namespace    DNA Shield
-// @version      2.1
+// @version      2.2
 // @author       Last Roze
-// @description  Dominion With Domination — Universal Zero-Grant Instant UI Engine (event-safe)
+// @description  Dominion With Domination — Low-overhead instant UI accelerator
 // @copyright    ©2020-2026 Yoga Budiman
 // @homepage     https://github.com/LastRoze/
 // @homepageURL  https://github.com/LastRoze/
