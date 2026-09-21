@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         DNA Shield
 // @namespace    DNA Shield
-// @version      2.1
+// @version      2.2
 // @author       Last Roze
-// @description  Dominion With Domination — Universal Zero-Grant Instant UI Engine (event-safe)
+// @description  Dominion With Domination — Low-overhead instant UI accelerator
 // @copyright    ©2020-2026 Yoga Budiman
 // @homepage     https://github.com/LastRoze/
 // @homepageURL  https://github.com/LastRoze/
@@ -22,8 +22,9 @@
 (function DNA_SHIELD() {
 
     'use strict';
-    const VERSION = '2.4';
-    const STYLE_ID = '__DNA_SHIELD_2.1__';
+
+    const VERSION = '2.2';
+    const STYLE_ID = '__DNA_SHIELD_2.2__';
 
     /* ==========================================================
      * CONFIGURATION
@@ -32,34 +33,61 @@
     const CONFIG = {
 
         /*
-         * Playback multiplier for INFINITE animations (spinners,
-         * pulses, marquees). 1 = leave them exactly as authored.
-         * Try 4 if you want them visibly faster. Values above ~10
-         * can generate a lot of animationiteration events.
+         * Playback multiplier for infinite CSS animations.
+         * 1 = leave them exactly as authored.
          */
         loopSpeed: 1,
 
         /*
-         * Finite animations/transitions longer than this many
-         * milliseconds are finished immediately. 0 = all of them.
+         * Finite CSS animations longer than this threshold are
+         * fast-forwarded. 0 = fast-forward every finite animation.
          */
         minDurationMs: 0,
 
-        /* Collapse animation-delay / transition-delay to zero. */
-        zeroDelays: true,
+        /*
+         * Zero CSS animation delays only.
+         *
+         * IMPORTANT:
+         * Transition delays are intentionally NOT modified by default.
+         * Transition timing is frequently part of a framework's UI
+         * state machine and changing it globally can break interactions.
+         */
+        zeroAnimationDelays: true,
 
-        /* Disable smooth scrolling. */
+        /*
+         * Fast-forward CSS transitions.
+         *
+         * Disabled by default because transitions are commonly tied to
+         * hover/focus/open/close state changes in React/Vue/etc.
+         */
+        accelerateTransitions: false,
+
+        /*
+         * Disable smooth scrolling.
+         *
+         * Kept opt-in because some applications deliberately depend on
+         * smooth scrolling behaviour.
+         */
         instantScroll: true,
 
         /*
-         * Also fast-forward animations created in JavaScript via
-         * element.animate(). These fire no animationstart event, so
-         * catching them needs a light periodic sweep. Off by default.
+         * Catch animations created with element.animate().
+         * Off by default. Enabling it periodically scans the document.
          */
         accelerateScriptedAnimations: false,
 
-        /* Sweep interval (ms) used only when the option above is on. */
-        sweepIntervalMs: 400,
+        /*
+         * Periodic scan interval when scripted animation acceleration
+         * is enabled.
+         */
+        sweepIntervalMs: 1000,
+
+        /*
+         * Maximum number of animation.finish() calls performed in one
+         * animation frame. Work is spread across frames to prevent a
+         * burst of animation events from freezing the main thread.
+         */
+        maxFinishesPerFrame: 16,
 
         /*
          * Hosts where DNA Shield stays completely out of the way.
@@ -74,14 +102,6 @@
 
     /* ==========================================================
      * PER-SITE KILL SWITCH
-     * ==========================================================
-     *
-     * localStorage flag, so it survives reloads without any @grant.
-     * Toggle at runtime with Ctrl+Alt+Shift+D, or from the console:
-     *
-     *      DNAShield.disableHere()
-     *      DNAShield.enableHere()
-     *
      * ========================================================== */
 
     const OFF_KEY = '__DNA_SHIELD_OFF__';
@@ -126,35 +146,31 @@
         window.__DNA_SHIELD__ = true;
         window.__DNA_SHIELD_VERSION__ = VERSION;
         window.__DNA_SHIELD_SAFE__ = true;
-        /*
-         * NOTE: `window.seconds = -1` from older versions was removed.
-         * It polluted a very common global name and could break
-         * countdown / timer scripts on unrelated pages.
-         */
     } catch (_) {}
 
     /* ==========================================================
-     * CSS — EVENT-NEUTRAL PARTS ONLY
+     * CSS — MINIMAL SCOPE
      * ==========================================================
      *
-     * Zeroing a DELAY is safe: the transition or animation still
-     * runs and still fires its full event sequence, it just starts
-     * immediately. Zeroing a DURATION is what suppresses the events,
-     * so durations are handled in JavaScript instead.
+     * The previous version applied both animation and transition
+     * delay rules to every element and pseudo-element. That creates
+     * avoidable style matching/recalculation pressure on large DOMs.
      *
+     * This version only touches animation-delay when requested.
+     * Transition-delay is left alone.
+     *
+     * No duration override is used as a browser fallback because
+     * 1ms !important transitions are just as capable of breaking
+     * application interaction state as finish().
      * ========================================================== */
 
     let CSS = '';
 
-    if (CONFIG.zeroDelays) {
+    if (CONFIG.zeroAnimationDelays) {
         CSS += `
-html *,
-html *::before,
-html *::after {
+html * {
     animation-delay: 0s !important;
-    transition-delay: 0s !important;
     -webkit-animation-delay: 0s !important;
-    -webkit-transition-delay: 0s !important;
 }
 `;
     }
@@ -168,44 +184,26 @@ body {
 `;
     }
 
-    /*
-     * Legacy fallback only. On engines without the Web Animations
-     * API we cannot fast-forward anything, so we shorten durations
-     * instead — but to 1ms, never 0s, so the events still fire.
-     */
-    const WAAPI =
-        typeof Element !== 'undefined' &&
-        typeof Element.prototype.getAnimations === 'function';
-
-    if (!WAAPI) {
-        CSS += `
-html *,
-html *::before,
-html *::after {
-    animation-duration: 1ms !important;
-    transition-duration: 1ms !important;
-    -webkit-animation-duration: 1ms !important;
-    -webkit-transition-duration: 1ms !important;
-}
-`;
-    }
-
     /* ==========================================================
      * STYLE INSTALLATION
      * ========================================================== */
 
     let styleEl = null;
+    let styleObserver = null;
 
     function install() {
         if (!ACTIVE || !CSS) {
             return;
         }
+
         try {
             if (styleEl && styleEl.isConnected) {
                 return;
             }
+
             if (!styleEl) {
                 const existing = document.getElementById(STYLE_ID);
+
                 if (existing) {
                     styleEl = existing;
                 } else {
@@ -214,8 +212,10 @@ html *::after {
                     styleEl.textContent = CSS;
                 }
             }
+
             const parent = document.head || document.documentElement;
-            if (parent) {
+
+            if (parent && !styleEl.isConnected) {
                 parent.appendChild(styleEl);
             }
         } catch (_) {
@@ -226,160 +226,340 @@ html *::after {
     install();
 
     /* ==========================================================
-     * ANIMATION ACCELERATION (the actual engine)
+     * ANIMATION ACCELERATION
+     * ==========================================================
+     *
+     * Critical difference from 2.1:
+     *
+     * 1. Animation events NEVER call finish() synchronously.
+     * 2. CSS transitions are ignored unless explicitly enabled.
+     * 3. Animation work is queued and spread across animation frames.
+     * 4. We do not call document.getAnimations() for normal operation.
+     *
+     * This prevents re-entrant animationend/transitionend callbacks
+     * from running in the middle of click/focus/state-change handlers.
      * ========================================================== */
 
-    const seen =
+    const handled =
         typeof WeakSet === 'function' ? new WeakSet() : null;
 
-    function accelerate(anim) {
+    const queued =
+        typeof WeakSet === 'function' ? new WeakSet() : null;
 
+    const finishQueue = [];
+    let finishFrame = 0;
+
+    function isCSSAnimation(anim) {
+        try {
+            /*
+             * CSSAnimation instances expose animationName.
+             * CSS transitions generally expose transitionProperty instead.
+             */
+            return !!anim && typeof anim.animationName === 'string';
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function isTransition(anim) {
+        try {
+            return !!anim && typeof anim.transitionProperty === 'string';
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function scheduleFinish(anim) {
         if (!anim) {
             return;
         }
 
         try {
-            if (seen) {
-                if (seen.has(anim)) {
+            if (queued) {
+                if (queued.has(anim)) {
                     return;
                 }
-                seen.add(anim);
+                queued.add(anim);
             }
-        } catch (_) {
-            return;
-        }
 
-        let timing = null;
+            finishQueue.push(anim);
 
-        try {
-            if (anim.effect && typeof anim.effect.getComputedTiming === 'function') {
-                timing = anim.effect.getComputedTiming();
+            if (!finishFrame) {
+                finishFrame = requestAnimationFrame(flushFinishQueue);
             }
-        } catch (_) {
+        } catch (_) {}
+    }
+
+    function flushFinishQueue() {
+        finishFrame = 0;
+
+        if (!ACTIVE) {
+            finishQueue.length = 0;
             return;
         }
 
-        if (!timing) {
-            return;
-        }
+        let processed = 0;
+        const limit = Math.max(
+            1,
+            Number(CONFIG.maxFinishesPerFrame) || 1
+        );
 
-        try {
+        while (finishQueue.length && processed < limit) {
+            const anim = finishQueue.shift();
 
-            const endTime = Number(timing.endTime);
-
-            const infinite =
-                timing.iterations === Infinity ||
-                !isFinite(endTime) ||
-                !isFinite(Number(timing.activeDuration));
-
-            /*
-             * Looping animation: it never blocks anything, so it is
-             * never finished — that would freeze the spinner and could
-             * fire an unexpected animationend. Only the playback rate
-             * is touched, and only if asked for.
-             */
-            if (infinite) {
-                if (CONFIG.loopSpeed > 1) {
-                    if (typeof anim.updatePlaybackRate === 'function') {
-                        anim.updatePlaybackRate(CONFIG.loopSpeed);
-                    } else {
-                        anim.playbackRate = CONFIG.loopSpeed;
-                    }
+            try {
+                if (queued) {
+                    queued.delete(anim);
                 }
-                return;
+            } catch (_) {}
+
+            try {
+                /*
+                 * Re-read state immediately before finishing. The page
+                 * may have cancelled/paused the animation since it was
+                 * queued.
+                 */
+                if (!anim || anim.playState !== 'running') {
+                    continue;
+                }
+
+                let timing = null;
+
+                if (
+                    anim.effect &&
+                    typeof anim.effect.getComputedTiming === 'function'
+                ) {
+                    timing = anim.effect.getComputedTiming();
+                }
+
+                if (!timing) {
+                    continue;
+                }
+
+                const endTime = Number(timing.endTime);
+                const activeDuration = Number(timing.activeDuration);
+                const infinite =
+                    timing.iterations === Infinity ||
+                    !isFinite(endTime) ||
+                    !isFinite(activeDuration);
+
+                if (infinite) {
+                    continue;
+                }
+
+                if (endTime <= Number(CONFIG.minDurationMs) || endTime <= 0) {
+                    continue;
+                }
+
+                /*
+                 * finish() is now outside the original animationstart
+                 * event stack, which avoids re-entrant application state
+                 * changes during pointer/click/focus processing.
+                 */
+                anim.finish();
+                processed++;
+            } catch (_) {
+                /* Exotic effects are left alone. */
             }
+        }
 
-            /*
-             * Paused / idle animations belong to the application's own
-             * state machine (scrubbed progress bars, gesture-driven
-             * drawers). Finishing them would change behaviour, not just
-             * timing, so they are left alone.
-             */
-            const state = anim.playState;
-            if (state !== 'running') {
-                return;
-            }
-
-            if (endTime <= CONFIG.minDurationMs) {
-                return;
-            }
-
-            /*
-             * finish() completes the animation AND dispatches
-             * transitionend / animationend. This is the whole point:
-             * the visual time disappears, the event contract survives.
-             */
-            anim.finish();
-
-        } catch (_) {
-            /*
-             * finish() throws for a few exotic effects. Nothing to do —
-             * the animation simply plays normally.
-             */
+        if (finishQueue.length) {
+            finishFrame = requestAnimationFrame(flushFinishQueue);
         }
     }
 
-    function accelerateTarget(target) {
+    function accelerate(anim) {
+        if (!anim) {
+            return;
+        }
+
+        try {
+            if (handled) {
+                if (handled.has(anim)) {
+                    return;
+                }
+                handled.add(anim);
+            }
+        } catch (_) {
+            return;
+        }
+
+        try {
+            if (isTransition(anim)) {
+                if (!CONFIG.accelerateTransitions) {
+                    return;
+                }
+
+                /*
+                 * Even when explicitly enabled, transitions are queued
+                 * rather than finished synchronously.
+                 */
+                if (anim.playState === 'running') {
+                    scheduleFinish(anim);
+                }
+
+                return;
+            }
+
+            if (!isCSSAnimation(anim)) {
+                /*
+                 * Script-created Animation objects are intentionally not
+                 * touched by normal event handling.
+                 */
+                return;
+            }
+
+            let timing = null;
+
+            if (
+                anim.effect &&
+                typeof anim.effect.getComputedTiming === 'function'
+            ) {
+                timing = anim.effect.getComputedTiming();
+            }
+
+            if (!timing) {
+                return;
+            }
+
+            const infinite =
+                timing.iterations === Infinity ||
+                !isFinite(Number(timing.endTime)) ||
+                !isFinite(Number(timing.activeDuration));
+
+            if (infinite) {
+                if (CONFIG.loopSpeed > 1) {
+                    try {
+                        if (typeof anim.updatePlaybackRate === 'function') {
+                            anim.updatePlaybackRate(CONFIG.loopSpeed);
+                        } else {
+                            anim.playbackRate = CONFIG.loopSpeed;
+                        }
+                    } catch (_) {}
+                }
+                return;
+            }
+
+            if (anim.playState !== 'running') {
+                return;
+            }
+
+            const endTime = Number(timing.endTime);
+
+            if (
+                !isFinite(endTime) ||
+                endTime <= Number(CONFIG.minDurationMs) ||
+                endTime <= 0
+            ) {
+                return;
+            }
+
+            scheduleFinish(anim);
+        } catch (_) {}
+    }
+
+    function accelerateTarget(target, animationName) {
         if (!target || typeof target.getAnimations !== 'function') {
             return;
         }
+
         let list;
+
         try {
             list = target.getAnimations();
         } catch (_) {
             return;
         }
+
         for (let i = 0; i < list.length; i++) {
-            accelerate(list[i]);
+            const anim = list[i];
+
+            try {
+                if (
+                    animationName &&
+                    isCSSAnimation(anim) &&
+                    anim.animationName !== animationName
+                ) {
+                    continue;
+                }
+            } catch (_) {}
+
+            accelerate(anim);
         }
     }
 
     function onAnimationEvent(e) {
+        /*
+         * Only process actual CSS animation starts by default.
+         * Transition events are deliberately not observed unless the
+         * user explicitly enables accelerateTransitions.
+         */
+        if (!e || !e.target) {
+            return;
+        }
+
+        accelerateTarget(e.target, e.animationName || '');
+    }
+
+    function onTransitionEvent(e) {
+        if (!CONFIG.accelerateTransitions || !e || !e.target) {
+            return;
+        }
+
         accelerateTarget(e.target);
     }
 
-    /*
-     * transitionrun fires before the delay elapses, animationstart at
-     * the first frame. Catching these means we only ever touch elements
-     * that genuinely animate — no cost on pages that do not.
-     */
     function hookEvents() {
-        if (!ACTIVE || !WAAPI) {
+        if (!ACTIVE || typeof document.addEventListener !== 'function') {
             return;
         }
-        const types = [
-            'animationstart',
-            'transitionrun',
-            'transitionstart'
-        ];
-        for (let i = 0; i < types.length; i++) {
-            try {
-                document.addEventListener(
-                    types[i],
-                    onAnimationEvent,
-                    { capture: true, passive: true }
-                );
-            } catch (_) {}
+
+        try {
+            document.addEventListener(
+                'animationstart',
+                onAnimationEvent,
+                { capture: true, passive: true }
+            );
+        } catch (_) {}
+
+        if (CONFIG.accelerateTransitions) {
+            const types = ['transitionrun', 'transitionstart'];
+
+            for (let i = 0; i < types.length; i++) {
+                try {
+                    document.addEventListener(
+                        types[i],
+                        onTransitionEvent,
+                        { capture: true, passive: true }
+                    );
+                } catch (_) {}
+            }
         }
     }
 
     hookEvents();
 
-    /*
-     * One-shot sweeps, in case the script was injected late or an
-     * animation started inside a shadow root whose events did not
-     * reach us.
-     */
+    /* ==========================================================
+     * MANUAL / OPTIONAL SWEEP
+     * ========================================================== */
+
     function sweep() {
-        if (!ACTIVE || !WAAPI) {
+        if (!ACTIVE) {
             return;
         }
+
         try {
-            if (typeof document.getAnimations === 'function') {
-                const list = document.getAnimations();
-                for (let i = 0; i < list.length; i++) {
-                    accelerate(list[i]);
-                }
+            if (typeof document.getAnimations !== 'function') {
+                return;
+            }
+
+            const list = document.getAnimations();
+
+            /*
+             * Queue only. Never finish the entire page synchronously.
+             */
+            for (let i = 0; i < list.length; i++) {
+                accelerate(list[i]);
             }
         } catch (_) {}
     }
@@ -388,46 +568,38 @@ html *::after {
      * STYLESHEET RECOVERY
      * ==========================================================
      *
-     * Some frameworks rebuild <head>. The old version observed the
-     * whole document with subtree:true and ran a getElementById on
-     * every single mutation — that is real CPU cost inside a heavy
-     * editor. We now watch only the two nodes that can actually drop
-     * our stylesheet, without subtree, and test isConnected.
-     *
+     * Only observe direct child changes on the document element.
+     * The previous implementation attached observers to both
+     * <html> and <head>, causing duplicate mutation callbacks.
      * ========================================================== */
 
     function startObserver() {
-
-        if (!ACTIVE || !CSS) {
-            return;
-        }
-
-        if (typeof MutationObserver !== 'function') {
+        if (!ACTIVE || !CSS || typeof MutationObserver !== 'function') {
             return;
         }
 
         try {
+            if (styleObserver) {
+                return;
+            }
 
-            const observer = new MutationObserver(function () {
+            styleObserver = new MutationObserver(function () {
                 if (!styleEl || !styleEl.isConnected) {
                     install();
                 }
             });
 
             if (document.documentElement) {
-                observer.observe(document.documentElement, { childList: true });
+                styleObserver.observe(document.documentElement, {
+                    childList: true
+                });
             }
-            if (document.head) {
-                observer.observe(document.head, { childList: true });
-            }
-
         } catch (_) {}
     }
 
     function onReady() {
         install();
         startObserver();
-        sweep();
     }
 
     try {
@@ -447,7 +619,6 @@ html *::after {
             'load',
             function () {
                 install();
-                sweep();
             },
             { once: true, passive: true }
         );
@@ -459,14 +630,18 @@ html *::after {
 
     let sweepTimer = null;
 
-    if (ACTIVE && WAAPI && CONFIG.accelerateScriptedAnimations) {
+    if (
+        ACTIVE &&
+        typeof document.getAnimations === 'function' &&
+        CONFIG.accelerateScriptedAnimations
+    ) {
         try {
             sweepTimer = setInterval(function () {
                 if (document.visibilityState === 'hidden') {
                     return;
                 }
                 sweep();
-            }, CONFIG.sweepIntervalMs);
+            }, Math.max(250, Number(CONFIG.sweepIntervalMs) || 1000));
         } catch (_) {}
     }
 
@@ -475,12 +650,20 @@ html *::after {
      * ========================================================== */
 
     try {
-        window.addEventListener('keydown', function (e) {
-            if (e.ctrlKey && e.altKey && e.shiftKey &&
-                (e.key === 'D' || e.key === 'd')) {
-                setDisabled(ACTIVE);
-            }
-        }, { capture: true, passive: true });
+        window.addEventListener(
+            'keydown',
+            function (e) {
+                if (
+                    e.ctrlKey &&
+                    e.altKey &&
+                    e.shiftKey &&
+                    (e.key === 'D' || e.key === 'd')
+                ) {
+                    setDisabled(ACTIVE);
+                }
+            },
+            { capture: true, passive: true }
+        );
     } catch (_) {}
 
     /* ==========================================================
@@ -488,12 +671,11 @@ html *::after {
      * ========================================================== */
 
     try {
-
         window.DNAShield = {
 
             version: VERSION,
             enabled: ACTIVE,
-            mode: 'waapi-fast-forward',
+            mode: 'queued-css-animation-fast-forward',
 
             zeroGrant: true,
             applicationSafe: true,
@@ -507,24 +689,35 @@ html *::after {
 
             config: CONFIG,
 
-            /* Manually fast-forward everything currently animating. */
+            /* Manually fast-forward currently animating CSS animations. */
             sweep: sweep,
 
-            /* Fast-forward one element's animations. */
+            /* Queue acceleration for one element's animations. */
             accelerate: accelerateTarget,
 
-            disableHere: function () { setDisabled(true); },
-            enableHere:  function () { setDisabled(false); },
+            disableHere: function () {
+                setDisabled(true);
+            },
+
+            enableHere: function () {
+                setDisabled(false);
+            },
 
             stopSweep: function () {
                 if (sweepTimer) {
                     clearInterval(sweepTimer);
                     sweepTimer = null;
                 }
+
+                if (finishFrame) {
+                    cancelAnimationFrame(finishFrame);
+                    finishFrame = 0;
+                }
+
+                finishQueue.length = 0;
             }
 
         };
-
     } catch (_) {}
 
 })();
