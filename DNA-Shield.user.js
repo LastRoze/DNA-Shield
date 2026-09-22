@@ -23,8 +23,8 @@
 
     'use strict';
 
-    const VERSION = '2.2';
-    const STYLE_ID = '__DNA_SHIELD_2.2__';
+    const VERSION = '2.3';
+    const STYLE_ID = '__DNA_SHIELD_' + VERSION + '__';
 
     /* ==========================================================
      * CONFIGURATION
@@ -368,7 +368,7 @@ body {
         }
     }
 
-    function accelerate(anim) {
+    function accelerate(anim, allowScripted) {
         if (!anim) {
             return;
         }
@@ -401,10 +401,11 @@ body {
                 return;
             }
 
-            if (!isCSSAnimation(anim)) {
+            if (!isCSSAnimation(anim) && allowScripted !== true) {
                 /*
                  * Script-created Animation objects are intentionally not
-                 * touched by normal event handling.
+                 * touched by event handling. Only the optional sweep
+                 * (accelerateScriptedAnimations) passes allowScripted.
                  */
                 return;
             }
@@ -557,9 +558,11 @@ body {
 
             /*
              * Queue only. Never finish the entire page synchronously.
+             * The sweep is the only caller allowed to accelerate
+             * script-created (element.animate) animations.
              */
             for (let i = 0; i < list.length; i++) {
-                accelerate(list[i]);
+                accelerate(list[i], true);
             }
         } catch (_) {}
     }

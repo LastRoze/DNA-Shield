@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DNA Shield
 // @namespace    DNA Shield
-// @version      2.2
+// @version      2.3
 // @author       Last Roze
 // @description  Dominion With Domination — Low-overhead instant UI accelerator
 // @copyright    ©2020-2026 Yoga Budiman
