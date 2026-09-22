@@ -216,6 +216,46 @@ describe("DNA Shield userscript", () => {
     ).toBe(1);
   });
 
+  test("routes script text through the site's default policy when present", () => {
+    HTMLScriptElement.supports = () => true;
+    /* Sites like Outlook: default policy exists, creating new ones is blocked. */
+    const createPolicy = jest.fn(() => {
+      throw new TypeError("Policy creation is disallowed");
+    });
+    window.trustedTypes = {
+      createPolicy,
+      defaultPolicy: { createScript: (s) => s }
+    };
+
+    runScript();
+
+    /* No console CSP violation: our own policy was never attempted. */
+    expect(createPolicy).not.toHaveBeenCalled();
+    expect(
+      document.querySelectorAll('script[type="application/speculationrules"]').length
+    ).toBe(1);
+  });
+
+  test("skips silently when the site's default policy rejects the text", () => {
+    HTMLScriptElement.supports = () => true;
+    window.trustedTypes = {
+      createPolicy: () => {
+        throw new TypeError("Policy creation is disallowed");
+      },
+      defaultPolicy: {
+        createScript: () => {
+          throw new TypeError("rejected by default policy");
+        }
+      }
+    };
+
+    expect(() => runScript()).not.toThrow();
+    expect(
+      document.querySelectorAll('script[type="application/speculationrules"]').length
+    ).toBe(0);
+    expect(window.DNAShield.enabled).toBe(true);
+  });
+
   test("uses a Trusted Types policy when one can be created", () => {
     HTMLScriptElement.supports = () => true;
     window.trustedTypes = {

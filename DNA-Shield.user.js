@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DNA Shield
 // @namespace    DNA Shield
-// @version      1.1
+// @version      1.2
 // @author       Last Roze
 // @description  Dominion With Domination
 // @copyright    ©2020-2026 Yoga Budiman
@@ -649,44 +649,69 @@
     var pendingHref = '';
 
     /*
-     * Trusted Types: sites like Gmail enforce
-     * require-trusted-types-for 'script', so script text must come
-     * from a policy - and those sites usually allow only their own
-     * policy names. If policy creation is blocked, injecting the
-     * rules would spam CSP violations for zero benefit, so DNA
-     * Shield skips script injection there entirely.
+     * Trusted Types: sites enforce require-trusted-types-for
+     * 'script' with their own policy allow-lists (Gmail, Outlook),
+     * so script text must come from an allowed policy - and those
+     * sites usually block creating new ones. Trying anyway would
+     * print a CSP violation in the console, so the write path below
+     * routes through whatever the site already allows and only
+     * falls back to creating our own policy when the site ships no
+     * default policy.
      */
     var ttPolicy = null;
     var ttUnavailable = false;
 
     /**
-     * Return a Trusted Types policy for script text, or null when
-     * injection must be skipped.
+     * Assign script text without tripping Trusted Types
+     * enforcement. Order: the site's default policy (zero console
+     * noise, JS-level failures are catchable), then our own policy
+     * (created once), then plain assignment when there is no
+     * Trusted Types API at all.
      *
-     * @returns {?Object} Policy wrapper or null.
+     * @param {HTMLScriptElement} script Target script element.
+     * @param {string} json Speculation rules JSON.
+     * @returns {boolean} True when the text was written safely.
      */
-    function scriptPolicy() {
-        if (ttPolicy) {
-            return ttPolicy;
-        }
-        if (ttUnavailable) {
-            return null;
+    function writeScriptText(script, json) {
+        var tt = window.trustedTypes;
+
+        if (!tt) {
+            script.textContent = json;
+            return true;
         }
 
         try {
-            var tt = window.trustedTypes;
-            if (tt && typeof tt.createPolicy === 'function') {
+            var dp = tt.defaultPolicy;
+            if (dp && typeof dp.createScript === 'function') {
+                script.text = dp.createScript(json);
+                return true;
+            }
+        } catch (_) {
+            /* The site's default policy rejected the text: skip
+               instead of fighting the site's CSP. */
+            return false;
+        }
+
+        if (ttPolicy) {
+            script.text = ttPolicy.createScript(json);
+            return true;
+        }
+
+        if (!ttUnavailable) {
+            try {
                 ttPolicy = tt.createPolicy('__dna_shield__', {
                     createScript: function (s) { return s; }
                 });
-                return ttPolicy;
+            } catch (_) {
+                ttUnavailable = true;
             }
-            /* No Trusted Types API at all: plain assignment is fine. */
-            return null;
-        } catch (_) {
-            ttUnavailable = true;
-            return null;
+            if (ttPolicy) {
+                script.text = ttPolicy.createScript(json);
+                return true;
+            }
         }
+
+        return false;
     }
 
     /**
@@ -754,16 +779,11 @@
             script.id = RULES_ID;
             script.type = 'application/speculationrules';
 
-            var json = JSON.stringify(rules);
-            var policy = scriptPolicy();
-            if (policy) {
-                script.text = policy.createScript(json);
-            } else if (ttUnavailable) {
-                /* Trusted Types enforcement without an allowed policy:
-                   skip instead of spamming CSP violations. */
+            /* Routes through the site's allowed Trusted Types policy
+               where needed; returns false on locked-down sites, in
+               which case we skip instead of spamming CSP violations. */
+            if (!writeScriptText(script, JSON.stringify(rules))) {
                 return;
-            } else {
-                script.textContent = json;
             }
 
             var parent = document.head || document.documentElement;
