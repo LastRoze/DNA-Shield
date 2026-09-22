@@ -293,6 +293,45 @@ describe("DNA Shield userscript", () => {
     ).toBe(0);
   });
 
+  test("leaves prefetching to the browser when speculation rules are supported", async () => {
+    HTMLScriptElement.supports = () => true;
+
+    runScript();
+
+    const a = document.createElement("a");
+    a.href = "http://localhost/chromium-hover";
+    document.body.appendChild(a);
+
+    fire(a, "pointerover");
+    await wait(120);
+    fire(a, "pointerdown", { button: 0 });
+    await wait(20);
+
+    /* The browser's speculation rules own same-origin prefetch here;
+       a manual second prefetcher would double-download. */
+    expect(document.querySelectorAll('link[rel="prefetch"]')).toHaveLength(0);
+    expect(
+      document.querySelectorAll('script[type="application/speculationrules"]').length
+    ).toBe(1);
+  });
+
+  test("still preconnects cross-origin links when speculation rules are supported", async () => {
+    HTMLScriptElement.supports = () => true;
+
+    runScript();
+
+    const a = document.createElement("a");
+    a.href = "https://partner.example.com/landing";
+    document.body.appendChild(a);
+
+    fire(a, "pointerdown", { button: 0 });
+    await wait(20);
+
+    expect(
+      document.querySelectorAll('link[rel="preconnect"][href="https://partner.example.com"]')
+    ).toHaveLength(1);
+  });
+
   test("prefetches same-origin links after hover intent", async () => {
     runScript();
 

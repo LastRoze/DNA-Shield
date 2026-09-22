@@ -28,8 +28,8 @@ Everything DNA Shield does targets one bar: **near instant means 0.1 seconds or 
 
 ### Navigation
 
-- On Chromium: injects declarative **Speculation Rules** — the browser itself prerenders and prefetches links on hover. Navigating feels like the page was already open, because it was (the next page's JS is already loaded and running before you click — that is what "near instant" really means). Sites that enforce Trusted Types (Gmail, Outlook, other Google/Microsoft apps) are handled with full CSP hygiene: the text routes through the site's own default policy where one exists, through a DNA Shield policy where creation is allowed, and is skipped entirely — silently, with zero console noise — where nothing is allowed.
-- Everywhere else (Firefox, Safari): same-origin links are prefetched after a 65 ms hover-intent delay, and immediately on `pointerdown` (mobile taps get the full head start). Cross-origin links get a preconnect.
+- On Chromium: injects declarative **Speculation Rules** — the browser itself prerenders and prefetches links on hover. Navigating feels like the page was already open, because it was. Sites that enforce Trusted Types (Gmail, Outlook, other Google/Microsoft apps) are handled with full CSP hygiene: the text routes through the site's own default policy where one exists, through a DNA Shield policy where creation is allowed, and is skipped entirely — silently, with zero console noise — where nothing is allowed. On these browsers DNA Shield steps out of prefetching entirely — one owner per engine, no double downloads, no duplicate console noise.
+- Everywhere else (Firefox, Safari): same-origin links are prefetched after a 65 ms hover-intent delay, and immediately on `pointerdown` (mobile taps get the full head start). Cross-origin links get a preconnect on every engine.
 - Keyboard users count too: focusing a link (`focusin`) warms it exactly like hovering.
 - Browsers without Pointer Events fall back to classic `mouseover`/`mousedown` — prefetching works everywhere Tampermonkey runs.
 - After load, the most-referenced resource origins in the DOM get preconnected so lazy-loaded assets start instantly.

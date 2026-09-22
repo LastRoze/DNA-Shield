@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DNA Shield
 // @namespace    DNA Shield
-// @version      1.2
+// @version      1.3
 // @author       Last Roze
 // @description  Dominion With Domination
 // @copyright    ©2020-2026 Yoga Budiman
@@ -647,6 +647,7 @@
     var hintCount = 0;
     var pendingTimer = 0;
     var pendingHref = '';
+    var specHandlesNav = null;
 
     /*
      * Trusted Types: sites enforce require-trusted-types-for
@@ -732,13 +733,28 @@
     }
 
     /**
+     * True when the browser itself handles link warming through
+     * Speculation Rules. Manual prefetch must stay off there: two
+     * prefetchers would double-download and log failures like 503s
+     * in the console. One owner per engine.
+     *
+     * @returns {boolean} True to leave prefetching to the browser.
+     */
+    function speculationHandlesNavigation() {
+        if (specHandlesNav === null) {
+            specHandlesNav = CONFIG.speculationRules && supportsSpeculation();
+        }
+        return specHandlesNav;
+    }
+
+    /**
      * Inject declarative prerender/prefetch document rules. Ignored
      * by browsers without support, so it is safe everywhere.
      *
      * @returns {void}
      */
     function injectSpeculationRules() {
-        if (!ACTIVE || !CONFIG.speculationRules || !supportsSpeculation()) {
+        if (!ACTIVE || !speculationHandlesNavigation()) {
             return;
         }
 
@@ -924,6 +940,11 @@
 
         if (sameOrigin) {
             if (!CONFIG.prefetch || isHeavyMedia(url)) {
+                return null;
+            }
+            if (speculationHandlesNavigation()) {
+                /* The browser already prefetches/prerenders same
+                   -origin links on hover here. */
                 return null;
             }
             return { kind: 'prefetch', url: url };
