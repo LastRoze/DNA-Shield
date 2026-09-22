@@ -177,6 +177,80 @@ describe("DNA Shield userscript", () => {
     expect(infinite.finish).not.toHaveBeenCalled();
   });
 
+  test("never accelerates animations inside CAPTCHA widgets", async () => {
+    runScript();
+
+    const dialog = document.createElement("div");
+    dialog.className = "shopee-captcha-verify-slider";
+    document.body.appendChild(dialog);
+
+    const puzzle = document.createElement("div");
+    dialog.appendChild(puzzle);
+    const captchaAnim = makeAnim({ animationName: "slide-piece" });
+    puzzle.getAnimations = () => [captchaAnim];
+
+    /* Event path: animationstart inside the captcha is ignored. */
+    fire(puzzle, "animationstart", { animationName: "slide-piece" });
+
+    /* Sweep path: animations owned by captcha elements are ignored. */
+    const outside = makeAnim();
+    document.getAnimations = () => [outside];
+    window.DNAShield.sweep();
+    delete document.getAnimations;
+
+    await wait();
+
+    expect(captchaAnim.finish).not.toHaveBeenCalled();
+    expect(outside.finish).toHaveBeenCalledTimes(1);
+  });
+
+  test("still accelerates animations outside captcha containers", async () => {
+    runScript();
+
+    const wrap = document.createElement("div");
+    wrap.className = "some-app-shell";
+    document.body.appendChild(wrap);
+
+    const deep = document.createElement("div");
+    wrap.appendChild(deep);
+    const anim = makeAnim({ animationName: "move" });
+    deep.getAnimations = () => [anim];
+
+    fire(deep, "animationstart", { animationName: "move" });
+    await wait();
+
+    /* Not inside a captcha-matched container: still accelerated. */
+    expect(anim.finish).toHaveBeenCalledTimes(1);
+  });
+
+  test("suspends the CSS clamp while a captcha is on screen, restores after", async () => {
+    runScript();
+
+    const style = document.getElementById("__DNA_SHIELD__");
+    expect(style.textContent).toEqual(
+      expect.stringContaining("transition-duration:0.01s !important")
+    );
+
+    const dialog = document.createElement("div");
+    dialog.className = "slider-captcha";
+    document.body.appendChild(dialog);
+
+    /* MutationObserver fires, throttled check re-runs within ~400ms. */
+    await wait(600);
+    expect(style.textContent).not.toEqual(
+      expect.stringContaining("transition-duration")
+    );
+    expect(style.textContent).toEqual(
+      expect.stringContaining("scroll-behavior:auto !important")
+    );
+
+    dialog.remove();
+    await wait(600);
+    expect(style.textContent).toEqual(
+      expect.stringContaining("transition-duration:0.01s !important")
+    );
+  });
+
   test("ignores transitions so state machines stay in control", async () => {
     runScript();
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DNA Shield
 // @namespace    DNA Shield
-// @version      1.3
+// @version      1.4
 // @author       Last Roze
 // @description  Dominion With Domination
 // @copyright    ©2020-2026 Yoga Budiman
@@ -97,6 +97,15 @@
         maxPreconnects: 6,
 
         /*
+         * Never touch animations inside CAPTCHA / human-verification
+         * widgets (slider puzzles, reCAPTCHA, hCaptcha, GeeTest,
+         * Turnstile, Arkose, ...). Their challenge logic reads
+         * animation timing as a bot signal and renders through it -
+         * accelerating those animations breaks the puzzle.
+         */
+        protectCaptchas: true,
+
+        /*
          * Hosts where DNA Shield stays completely out of the way.
          * Subdomains are matched automatically.
          */
@@ -106,6 +115,45 @@
         ]
 
     };
+
+    /* ==========================================================
+     * CAPTCHA EXCLUSION ZONE
+     * ========================================================== */
+
+    var CAPTCHA_SELECTOR = [
+        '[class*="captcha" i]', '[id*="captcha" i]',
+        '[class*="geetest" i]', '[class*="gt_slider" i]',
+        '[class*="recaptcha" i]', '[class*="g-recaptcha" i]',
+        '[class*="hcaptcha" i]', '[class*="h-captcha" i]',
+        '[class*="turnstile" i]', '[class*="cf-turnstile" i]',
+        'iframe[src*="challenges.cloudflare.com"]',
+        'iframe[src*="recaptcha"]', 'iframe[src*="hcaptcha"]',
+        'iframe[src*="captcha" i]', 'iframe[src*="geetest" i]',
+        '[class*="arkose" i]', '[class*="funcaptcha" i]',
+        '[class*="puzzle" i]', '[class*="yidun" i]',
+        '[class*="slider-verify" i]', '[class*="verify-slide" i]',
+        '[class*="captcha-verify" i]', '[class*="verify-captcha" i]',
+        '[class*="slide-verify" i]', '[class*="verify-slider" i]'
+    ].join(',');
+
+    /**
+     * True when an element sits inside a CAPTCHA widget that DNA
+     * Shield must leave alone.
+     *
+     * @param {Element} el Element to check.
+     * @returns {boolean} True inside a captcha.
+     */
+    function inCaptcha(el) {
+        if (!CONFIG.protectCaptchas || !el) {
+            return false;
+        }
+        try {
+            return typeof el.closest === 'function' &&
+                !!el.closest(CAPTCHA_SELECTOR);
+        } catch (_) {
+            return false;
+        }
+    }
 
     /* ==========================================================
      * PER-SITE KILL SWITCH
@@ -202,13 +250,22 @@
     /**
      * Build the acceleration stylesheet from the config.
      *
+     * @param {boolean} suspended True to emit only captcha-safe
+     *        rules: while a captcha is on screen its animation and
+     *        transition timing must stay exactly as authored -
+     *        slider puzzles are commonly driven by negative
+     *        animation-delay tricks that the clamps would destroy.
      * @returns {string} CSS text.
      */
-    function buildCSS() {
+    function buildCSS(suspended) {
         var css = '';
 
         if (CONFIG.instantScroll) {
             css += 'html{scroll-behavior:auto !important}';
+        }
+
+        if (suspended) {
+            return css;
         }
 
         var rules = [];
@@ -266,7 +323,7 @@
             return;
         }
 
-        var css = buildCSS();
+        var css = buildCSS(cssSuspended);
         if (!css) {
             return;
         }
@@ -332,10 +389,83 @@
         return false;
     }
 
+    /* ==========================================================
+     * CAPTCHA SUSPENSION
+     * ==========================================================
+     * While a captcha widget is in the DOM the whole accelerator
+     * stylesheet is swapped for the captcha-safe subset, because a
+     * universal !important clamp cannot be selectively undone in
+     * CSS. The swap is throttled so busy DOMs do not pay for it.
+     * ========================================================== */
+
+    var cssSuspended = false;
+    var lastCaptchaCheck = 0;
+    var captchaCheckInterval = 250;
+    var captchaTimer = 0;
+
+    /**
+     * Rebuild the live stylesheet for the current captcha state.
+     *
+     * @returns {void}
+     */
+    function refreshCSS() {
+        var css = buildCSS(cssSuspended);
+
+        try {
+            if (styleSheet) {
+                styleSheet.replaceSync(css);
+                return;
+            }
+        } catch (_) {}
+
+        try {
+            if (styleEl && styleEl.isConnected) {
+                styleEl.textContent = css;
+            }
+        } catch (_) {}
+    }
+
+    /**
+     * Detect captcha widgets (throttled, with a trailing re-check so
+     * one is never missed) and swap the stylesheet in or out.
+     *
+     * @returns {void}
+     */
+    function checkCaptcha() {
+        if (!ACTIVE || !CONFIG.protectCaptchas) {
+            return;
+        }
+
+        var now = Date.now();
+        var elapsed = now - lastCaptchaCheck;
+        if (elapsed < captchaCheckInterval) {
+            if (!captchaTimer) {
+                captchaTimer = setTimeout(function () {
+                    captchaTimer = 0;
+                    checkCaptcha();
+                }, captchaCheckInterval - elapsed);
+            }
+            return;
+        }
+        lastCaptchaCheck = now;
+
+        var present = false;
+        try {
+            present = !!document.querySelector(CAPTCHA_SELECTOR);
+        } catch (_) {}
+
+        if (present !== cssSuspended && isInstalled()) {
+            cssSuspended = present;
+            refreshCSS();
+        }
+    }
+
     /**
      * Observe DOM changes so a page removing the stylesheet gets it
-     * reinstalled. Subtree childList is required - removals from
-     * <head> are not direct children of <html>.
+     * reinstalled, and so captcha widgets can toggle the stylesheet
+     * between full and captcha-safe modes. Subtree childList is
+     * required - removals from <head> are not direct children of
+     * <html>.
      *
      * @returns {void}
      */
@@ -349,6 +479,7 @@
                 if (!isInstalled()) {
                     install();
                 }
+                checkCaptcha();
             });
 
             if (document.documentElement) {
@@ -509,6 +640,13 @@
         }
 
         try {
+            var owner = anim.effect && anim.effect.target;
+            if (inCaptcha(owner)) {
+                return;
+            }
+        } catch (_) {}
+
+        try {
             if (handled) {
                 if (handled.has(anim)) {
                     return;
@@ -604,6 +742,9 @@
      */
     function onAnimationStart(e) {
         if (!e || !e.target) {
+            return;
+        }
+        if (inCaptcha(e.target)) {
             return;
         }
         accelerateTarget(e.target, e.animationName || '', false);
@@ -1272,12 +1413,14 @@
     }
 
     /**
-     * DOMContentLoaded work: late installs and the first sweep.
+     * DOMContentLoaded work: late installs, captcha detection and the
+     * first sweep.
      *
      * @returns {void}
      */
     function onReady() {
         install();
+        checkCaptcha();
         injectSpeculationRules();
         startObserver();
         sweep();

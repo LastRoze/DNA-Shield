@@ -44,6 +44,15 @@ The Web Animations fast-forward and the CSS clamp both remove animation work fro
 
 No native APIs are patched, no timers, no `fetch`/XHR, no event defaults, no frameworks. The speedup comes from clamping, finishing, warming, and prerendering — not from monkey-patching the browser. This is what keeps it safe on every site.
 
+### CAPTCHAs are untouchable
+
+Human-verification widgets — slider puzzles (Shopee, AliExpress-style), reCAPTCHA, hCaptcha, Cloudflare Turnstile, GeeTest, Arkose, and anything whose DOM marks it as a captcha/verify/puzzle component — are a permanent exclusion zone, on two layers:
+
+1. **JavaScript:** their animations are never fast-forwarded — neither the `animationstart` path nor any sweep touches an animation owned by a captcha element (their challenge logic reads animation timing as a bot signal).
+2. **CSS:** while a captcha widget is on screen, the entire accelerator stylesheet is swapped for a captcha-safe subset (instant scrolling only) and restored the moment it's gone — because slider puzzles are commonly driven by negative `animation-delay` techniques that a universal clamp would destroy.
+
+This is on by default (`CONFIG.protectCaptchas`).
+
 ## Works everywhere
 
 - Browsers: Chrome, Edge, Firefox, Safari, Opera, Vivaldi, Brave, and anything else that runs Tampermonkey.
