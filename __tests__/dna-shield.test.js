@@ -12,9 +12,9 @@ function runScript() {
 }
 
 /**
- * Build a mock Animation object covering the surface DNA Shield reads:
- * animationName / transitionProperty detection, playState, computed
- * timing, and the finish/playbackRate controls.
+ * Build a mock Animation object covering the surface DNA Shield
+ * reads: animationName / transitionProperty detection, playState,
+ * computed timing, and the finish control.
  */
 function makeAnim(options = {}) {
   const timing = {
@@ -27,11 +27,11 @@ function makeAnim(options = {}) {
   const has = (key) => Object.prototype.hasOwnProperty.call(options, key);
 
   return {
-    animationName: has("animationName") ? options.animationName : "fade-in",
-    transitionProperty: has("transitionProperty") ? options.transitionProperty : undefined,
+    animationName: has("animationName") ? options.animationName : undefined,
+    transitionProperty: has("transitionProperty")
+      ? options.transitionProperty
+      : undefined,
     playState: options.playState || "running",
-    playbackRate: 1,
-    updatePlaybackRate: jest.fn(),
     finish: jest.fn(),
     effect: {
       getComputedTiming: () => timing
@@ -39,9 +39,16 @@ function makeAnim(options = {}) {
   };
 }
 
-/** Wait long enough for jsdom's timer-driven requestAnimationFrame to fire. */
-function nextFrame() {
-  return new Promise((resolve) => setTimeout(resolve, 50));
+/** Wait long enough for jsdom timers and MutationObservers. */
+function wait(ms = 60) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Dispatch a bubbling DOM event, with extra properties attached. */
+function fire(target, type, props = {}) {
+  const event = new window.Event(type, { bubbles: true, composed: true });
+  Object.assign(event, props);
+  target.dispatchEvent(event);
 }
 
 describe("DNA Shield userscript", () => {
@@ -49,148 +56,355 @@ describe("DNA Shield userscript", () => {
     document.head.innerHTML = "";
     document.body.innerHTML = "";
     localStorage.clear();
+    if (window.DNAShield) {
+      window.DNAShield.stop();
+    }
     delete window.DNAShield;
-    delete window.__DNA_SHIELD__;
-    delete window.__DNA_SHIELD_VERSION__;
-    delete window.__DNA_SHIELD_SAFE__;
+    /* jsdom may lack PointerEvent; force the modern input path. */
+    if (typeof window.PointerEvent !== "function") {
+      window.PointerEvent = function PointerEventStub() {};
+      window.PointerEvent._stub = true;
+    }
+    if ("supports" in HTMLScriptElement) {
+      delete HTMLScriptElement.supports;
+    }
   });
 
-  test("exposes public state and API", () => {
+  afterEach(() => {
+    if (window.DNAShield) {
+      window.DNAShield.stop();
+    }
+    if (window.PointerEvent && window.PointerEvent._stub) {
+      delete window.PointerEvent;
+    }
+  });
+
+  test("exposes a public API with hard safety guarantees", () => {
     runScript();
 
-    expect(window.__DNA_SHIELD__).toBe(true);
-    expect(window.__DNA_SHIELD_VERSION__).toBe("2.3");
     expect(window.DNAShield).toBeDefined();
-    expect(window.DNAShield.version).toBe("2.3");
     expect(window.DNAShield.enabled).toBe(true);
-    expect(window.DNAShield.config.zeroAnimationDelays).toBe(true);
-    expect(window.DNAShield.config.accelerateTransitions).toBe(false);
     expect(typeof window.DNAShield.sweep).toBe("function");
-    expect(typeof window.DNAShield.accelerate).toBe("function");
-    expect(typeof window.DNAShield.stopSweep).toBe("function");
+    expect(typeof window.DNAShield.prefetch).toBe("function");
+    expect(typeof window.DNAShield.stop).toBe("function");
+    expect(window.DNAShield.patchesNativeAPIs).toBe(false);
+    expect(window.DNAShield.patchesTimers).toBe(false);
+    expect(window.DNAShield.patchesNetwork).toBe(false);
   });
 
-  test("installs its scoped stylesheet immediately", () => {
+  test("forces every duration to 0.01s and every delay to 0s", () => {
     runScript();
 
-    const style = document.getElementById(
-      `__DNA_SHIELD_${window.__DNA_SHIELD_VERSION__}__`
-    );
+    const style = document.getElementById("__DNA_SHIELD__");
     expect(style).not.toBeNull();
     expect(style.textContent).toEqual(
-      expect.stringContaining("animation-delay: 0s !important;")
+      expect.stringContaining("animation-duration:0.01s !important")
     );
     expect(style.textContent).toEqual(
-      expect.stringContaining("scroll-behavior: auto !important;")
+      expect.stringContaining("transition-duration:0.01s !important")
+    );
+    expect(style.textContent).toEqual(
+      expect.stringContaining("animation-delay:0s !important")
+    );
+    expect(style.textContent).toEqual(
+      expect.stringContaining("transition-delay:0s !important")
+    );
+    expect(style.textContent).toEqual(
+      expect.stringContaining("animation-iteration-count:1 !important")
+    );
+    expect(style.textContent).toEqual(
+      expect.stringContaining("scroll-behavior:auto !important")
     );
   });
 
-  test("injects no transition or universal-selector overrides", () => {
-    runScript();
-
-    const style = document.getElementById(
-      `__DNA_SHIELD_${window.__DNA_SHIELD_VERSION__}__`
-    );
-    expect(style).not.toBeNull();
-    expect(style.textContent).not.toEqual(
-      expect.stringContaining("transition-duration")
-    );
-    expect(style.textContent).not.toEqual(
-      expect.stringContaining("::before")
-    );
-    expect(style.textContent).not.toEqual(
-      expect.stringContaining("async-hide")
-    );
-  });
-
-  test("stays disabled when the per-site kill switch is set", () => {
+  test("stays completely out of a disabled host or kill-switched site", () => {
     localStorage.setItem("__DNA_SHIELD_OFF__", "1");
 
     runScript();
 
     expect(window.DNAShield.enabled).toBe(false);
-    expect(
-      document.querySelector('style[id^="__DNA_SHIELD_"]')
-    ).toBeNull();
+    expect(document.getElementById("__DNA_SHIELD__")).toBeNull();
   });
 
-  test("fast-forwards finite CSS animations on the next frame", async () => {
+  test("reinstalls the stylesheet after a page removes it", async () => {
     runScript();
 
-    const anim = makeAnim();
-    window.DNAShield.accelerate({ getAnimations: () => [anim] });
-    expect(anim.finish).not.toHaveBeenCalled();
+    const style = document.getElementById("__DNA_SHIELD__");
+    expect(style).not.toBeNull();
 
-    await nextFrame();
+    style.remove();
+    await wait();
+
+    expect(document.getElementById("__DNA_SHIELD__")).not.toBeNull();
+  });
+
+  test("fast-forwards CSS animations on animationstart", async () => {
+    runScript();
+
+    const el = document.createElement("div");
+    document.body.appendChild(el);
+    const anim = makeAnim({ animationName: "fade-in" });
+    el.getAnimations = () => [anim];
+
+    fire(el, "animationstart", { animationName: "fade-in" });
+    await wait();
 
     expect(anim.finish).toHaveBeenCalledTimes(1);
   });
 
-  test("leaves infinite animations and transitions alone", async () => {
+  test("sweep finishes finite scripted animations and skips infinite", async () => {
     runScript();
 
+    const scripted = makeAnim();
     const infinite = makeAnim({ timing: { iterations: Infinity, endTime: Infinity, activeDuration: Infinity } });
-    const transition = makeAnim({ animationName: undefined, transitionProperty: "opacity" });
-
-    window.DNAShield.accelerate({
-      getAnimations: () => [infinite, transition]
-    });
-
-    await nextFrame();
-
-    expect(infinite.finish).not.toHaveBeenCalled();
-    expect(transition.finish).not.toHaveBeenCalled();
-    expect(infinite.updatePlaybackRate).not.toHaveBeenCalled();
-  });
-
-  test("only accelerates animations matching the given name", async () => {
-    runScript();
-
-    const fade = makeAnim({ animationName: "fade-in" });
-    const spin = makeAnim({ animationName: "spin" });
-
-    window.DNAShield.accelerate(
-      { getAnimations: () => [fade, spin] },
-      "fade-in"
-    );
-
-    await nextFrame();
-
-    expect(fade.finish).toHaveBeenCalledTimes(1);
-    expect(spin.finish).not.toHaveBeenCalled();
-  });
-
-  test("sweep fast-forwards script-created animations", async () => {
-    runScript();
-
-    const scripted = makeAnim({ animationName: undefined, transitionProperty: undefined });
-    const original = document.getAnimations;
-    document.getAnimations = () => [scripted];
+    document.getAnimations = () => [scripted, infinite];
 
     try {
       window.DNAShield.sweep();
     } finally {
-      if (original === undefined) {
-        delete document.getAnimations;
-      } else {
-        document.getAnimations = original;
-      }
+      delete document.getAnimations;
     }
 
-    await nextFrame();
+    await wait();
 
     expect(scripted.finish).toHaveBeenCalledTimes(1);
+    expect(infinite.finish).not.toHaveBeenCalled();
   });
 
-  test("event-driven acceleration ignores script-created animations", async () => {
+  test("ignores transitions so state machines stay in control", async () => {
     runScript();
 
-    const scripted = makeAnim({ animationName: undefined, transitionProperty: undefined });
+    const el = document.createElement("div");
+    document.body.appendChild(el);
+    const transition = makeAnim({ transitionProperty: "opacity" });
+    el.getAnimations = () => [transition];
 
-    window.DNAShield.accelerate({ getAnimations: () => [scripted] });
+    fire(el, "animationstart", { animationName: "" });
+    window.DNAShield.sweep();
+    await wait();
 
-    await nextFrame();
+    expect(transition.finish).not.toHaveBeenCalled();
+  });
 
-    expect(scripted.finish).not.toHaveBeenCalled();
+  test("injects Chromium speculation rules exactly once", () => {
+    HTMLScriptElement.supports = () => true;
+
+    runScript();
+
+    const rules = document.querySelectorAll(
+      'script[type="application/speculationrules"]'
+    );
+    expect(rules.length).toBe(1);
+    const parsed = JSON.parse(rules[0].textContent);
+    expect(parsed.prerender[0].source).toBe("document");
+    expect(parsed.prerender[0].eagerness).toBe("moderate");
+    expect(parsed.prefetch[0].where.and[1].not.selector_matches).toEqual(
+      expect.stringContaining("logout")
+    );
+
+    window.DNAShield.stop();
+    runScript();
+
+    expect(
+      document.querySelectorAll('script[type="application/speculationrules"]').length
+    ).toBe(1);
+  });
+
+  test("skips speculation rules on engines without support", () => {
+    runScript();
+
+    expect(
+      document.querySelectorAll('script[type="application/speculationrules"]').length
+    ).toBe(0);
+  });
+
+  test("prefetches same-origin links after hover intent", async () => {
+    runScript();
+
+    const a = document.createElement("a");
+    a.href = "http://localhost/next-page";
+    document.body.appendChild(a);
+
+    fire(a, "pointerover");
+    await wait(30);
+    expect(document.querySelectorAll('link[rel="prefetch"]')).toHaveLength(0);
+
+    await wait(60);
+    const links = document.querySelectorAll(
+      'link[rel="prefetch"][href="http://localhost/next-page"]'
+    );
+    expect(links).toHaveLength(1);
+  });
+
+  test("cancels hover prefetch when the pointer leaves the link", async () => {
+    runScript();
+
+    const a = document.createElement("a");
+    a.href = "http://localhost/next-page";
+    document.body.appendChild(a);
+
+    fire(a, "pointerover");
+    fire(a, "pointerout", { relatedTarget: document.body });
+    await wait(120);
+
+    expect(document.querySelectorAll('link[rel="prefetch"]')).toHaveLength(0);
+  });
+
+  test("prefetches immediately on pointerdown for touch users", async () => {
+    runScript();
+
+    const a = document.createElement("a");
+    a.href = "http://localhost/tap-target";
+    document.body.appendChild(a);
+
+    fire(a, "pointerdown", { button: 0 });
+    await wait(20);
+
+    expect(
+      document.querySelectorAll('link[rel="prefetch"][href="http://localhost/tap-target"]')
+    ).toHaveLength(1);
+  });
+
+  test("never prefetches logout links, downloads, or heavy media", async () => {
+    runScript();
+
+    const hrefs = [
+      "http://localhost/logout",
+      "http://localhost/users/signout",
+      "http://localhost/files/archive.zip"
+    ];
+    for (const href of hrefs) {
+      const a = document.createElement("a");
+      a.href = href;
+      document.body.appendChild(a);
+      fire(a, "pointerdown", { button: 0 });
+    }
+
+    const download = document.createElement("a");
+    download.href = "http://localhost/report";
+    download.setAttribute("download", "report.pdf");
+    document.body.appendChild(download);
+    fire(download, "pointerdown", { button: 0 });
+
+    await wait(30);
+
+    expect(document.querySelectorAll('link[rel="prefetch"]')).toHaveLength(0);
+  });
+
+  test("preconnects cross-origin links instead of prefetching", async () => {
+    runScript();
+
+    const a = document.createElement("a");
+    a.href = "https://partner.example.com/landing";
+    document.body.appendChild(a);
+
+    fire(a, "pointerdown", { button: 0 });
+    await wait(20);
+
+    expect(
+      document.querySelectorAll('link[rel="preconnect"][href="https://partner.example.com"]')
+    ).toHaveLength(1);
+    expect(
+      document.querySelectorAll('link[rel="prefetch"][href="https://partner.example.com/landing"]')
+    ).toHaveLength(0);
+  });
+
+  test("deduplicates hints and stops prefetching on Save-Data", async () => {
+    runScript();
+
+    const a = document.createElement("a");
+    a.href = "http://localhost/once-only";
+    document.body.appendChild(a);
+    fire(a, "pointerdown", { button: 0 });
+    fire(a, "pointerdown", { button: 0 });
+    await wait(20);
+    expect(
+      document.querySelectorAll('link[rel="prefetch"][href="http://localhost/once-only"]')
+    ).toHaveLength(1);
+
+    window.DNAShield.stop();
+
+    Object.defineProperty(navigator, "connection", {
+      configurable: true,
+      value: { saveData: true }
+    });
+    const b = document.createElement("a");
+    b.href = "http://localhost/save-data-page";
+    document.body.appendChild(b);
+    fire(b, "pointerdown", { button: 0 });
+    await wait(20);
+    expect(
+      document.querySelectorAll('link[rel="prefetch"][href="http://localhost/save-data-page"]')
+    ).toHaveLength(0);
+
+    delete navigator.connection;
+  });
+
+  test("stop() removes the stylesheet and detaches acceleration", async () => {
+    runScript();
+
+    expect(document.getElementById("__DNA_SHIELD__")).not.toBeNull();
+    window.DNAShield.stop();
+    expect(document.getElementById("__DNA_SHIELD__")).toBeNull();
+
+    const el = document.createElement("div");
+    document.body.appendChild(el);
+    const anim = makeAnim({ animationName: "fade-in" });
+    el.getAnimations = () => [anim];
+    fire(el, "animationstart", { animationName: "fade-in" });
+    await wait();
+
+    expect(anim.finish).not.toHaveBeenCalled();
+  });
+
+  test("falls back to mouse events when Pointer Events are missing", async () => {
+    delete window.PointerEvent;
+
+    runScript();
+
+    const a = document.createElement("a");
+    a.href = "http://localhost/legacy-browser";
+    document.body.appendChild(a);
+
+    fire(a, "mouseover");
+    await wait(120);
+
+    expect(
+      document.querySelectorAll('link[rel="prefetch"][href="http://localhost/legacy-browser"]')
+    ).toHaveLength(1);
+  });
+
+  test("prefetches when a link receives keyboard focus", async () => {
+    runScript();
+
+    const a = document.createElement("a");
+    a.href = "http://localhost/keyboard-nav";
+    a.tabIndex = 0;
+    document.body.appendChild(a);
+
+    fire(a, "focusin");
+    await wait(20);
+
+    expect(
+      document.querySelectorAll('link[rel="prefetch"][href="http://localhost/keyboard-nav"]')
+    ).toHaveLength(1);
+  });
+
+  test("reinstalls and re-sweeps after a back/forward-cache restore", async () => {
+    runScript();
+
+    const scripted = makeAnim();
+    document.getAnimations = () => [scripted];
+
+    const style = document.getElementById("__DNA_SHIELD__");
+    style.remove();
+
+    fire(window, "pageshow", { persisted: true });
+    await wait();
+
+    expect(document.getElementById("__DNA_SHIELD__")).not.toBeNull();
+    expect(scripted.finish).toHaveBeenCalledTimes(1);
+
+    delete document.getAnimations;
   });
 });

@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         DNA Shield
 // @namespace    DNA Shield
-// @version      2.2
+// @version      1.0
 // @author       Last Roze
-// @description  Dominion With Domination — Low-overhead instant UI accelerator
+// @description  Dominion With Domination
 // @copyright    ©2020-2026 Yoga Budiman
 // @homepage     https://github.com/LastRoze/
 // @homepageURL  https://github.com/LastRoze/
@@ -23,71 +23,66 @@
 
     'use strict';
 
-    const VERSION = '2.3';
-    const STYLE_ID = '__DNA_SHIELD_' + VERSION + '__';
-
     /* ==========================================================
      * CONFIGURATION
      * ========================================================== */
 
-    const CONFIG = {
+    var CONFIG = {
 
         /*
-         * Playback multiplier for infinite CSS animations.
-         * 1 = leave them exactly as authored.
+         * Maximum CSS animation/transition duration in ms.
+         * Everything is forced to run at most this long.
+         * 10 ms is far below the 0.1 s "near instant" bar while
+         * still letting transitionrun/start/end and animationstart/
+         * animationend events fire normally, so framework state
+         * machines keep working.
          */
-        loopSpeed: 1,
+        durationMs: 10,
+
+        /* Zero out all animation and transition delays. */
+        zeroDelays: true,
 
         /*
-         * Finite CSS animations longer than this threshold are
-         * fast-forwarded. 0 = fast-forward every finite animation.
+         * Force animation-iteration-count to 1.
+         * Prevents infinite loops from strobing when their duration
+         * is clamped, and stops endless animation CPU burn.
          */
-        minDurationMs: 0,
+        singleIteration: true,
 
-        /*
-         * Zero CSS animation delays only.
-         *
-         * IMPORTANT:
-         * Transition delays are intentionally NOT modified by default.
-         * Transition timing is frequently part of a framework's UI
-         * state machine and changing it globally can break interactions.
-         */
-        zeroAnimationDelays: true,
-
-        /*
-         * Fast-forward CSS transitions.
-         *
-         * Disabled by default because transitions are commonly tied to
-         * hover/focus/open/close state changes in React/Vue/etc.
-         */
-        accelerateTransitions: false,
-
-        /*
-         * Disable smooth scrolling.
-         *
-         * Kept opt-in because some applications deliberately depend on
-         * smooth scrolling behaviour.
-         */
+        /* Kill smooth scrolling. */
         instantScroll: true,
 
         /*
-         * Catch animations created with element.animate().
-         * Off by default. Enabling it periodically scans the document.
+         * Fast-forward finite animations created with
+         * element.animate() during sweeps. CSS animations are always
+         * accelerated through animationstart events.
          */
-        accelerateScriptedAnimations: false,
+        accelerateScriptedAnimations: true,
 
         /*
-         * Periodic scan interval when scripted animation acceleration
-         * is enabled.
+         * Navigation acceleration.
+         *
+         * On Chromium, Speculation Rules prerender/prefetch links on
+         * hover (declarative, zero JS cost). Everywhere else, DNA
+         * Shield prefetches same-origin links itself after a short
+         * hover-intent delay, and on pointerdown with no delay.
+         * Cross-origin links only get a preconnect.
          */
-        sweepIntervalMs: 1000,
+        speculationRules: true,
+        speculationEagerness: 'moderate',
+        prefetch: true,
+        prefetchHoverDelayMs: 65,
+        maxHintsPerPage: 120,
+
+        /* Preconnect to cross-origin link targets on interaction. */
+        preconnect: true,
 
         /*
-         * Maximum number of animation.finish() calls performed in one
-         * animation frame. Work is spread across frames to prevent a
-         * burst of animation events from freezing the main thread.
+         * After load, preconnect to the most-referenced resource
+         * origins found in the DOM so lazy loads start instantly.
          */
-        maxFinishesPerFrame: 16,
+        preconnectScan: true,
+        maxPreconnects: 6,
 
         /*
          * Hosts where DNA Shield stays completely out of the way.
@@ -104,19 +99,32 @@
      * PER-SITE KILL SWITCH
      * ========================================================== */
 
-    const OFF_KEY = '__DNA_SHIELD_OFF__';
+    var OFF_KEY = '__DNA_SHIELD_OFF__';
+    var listeners = [];
 
+    /**
+     * Check whether the current host is on the disabled list.
+     *
+     * @returns {boolean} True when DNA Shield must not run here.
+     */
     function hostDisabled() {
         try {
-            const h = location.hostname;
-            return CONFIG.disabledHosts.some(function (d) {
-                return h === d || h.endsWith('.' + d);
-            });
-        } catch (_) {
-            return false;
-        }
+            var h = location.hostname;
+            for (var i = 0; i < CONFIG.disabledHosts.length; i++) {
+                var d = CONFIG.disabledHosts[i];
+                if (h === d || h.endsWith('.' + d)) {
+                    return true;
+                }
+            }
+        } catch (_) {}
+        return false;
     }
 
+    /**
+     * Check the per-site localStorage kill switch.
+     *
+     * @returns {boolean} True when the user disabled DNA Shield here.
+     */
     function userDisabled() {
         try {
             return localStorage.getItem(OFF_KEY) === '1';
@@ -125,6 +133,13 @@
         }
     }
 
+    /**
+     * Toggle or set the kill switch, then reload so every module
+     * starts from a clean state.
+     *
+     * @param {boolean} v True to disable DNA Shield on this site.
+     * @returns {void}
+     */
     function setDisabled(v) {
         try {
             if (v) {
@@ -136,131 +151,228 @@
         } catch (_) {}
     }
 
-    const ACTIVE = !hostDisabled() && !userDisabled();
+    var ACTIVE = !hostDisabled() && !userDisabled();
+
+    /**
+     * Add an event listener that stop() can remove again.
+     *
+     * @param {EventTarget} target Object to listen on.
+     * @param {string} type Event type.
+     * @param {Function} fn Handler.
+     * @param {Object} [opts] addEventListener options.
+     * @returns {void}
+     */
+    function listen(target, type, fn, opts) {
+        try {
+            target.addEventListener(type, fn, opts);
+            listeners.push([target, type, fn, opts]);
+        } catch (_) {}
+    }
 
     /* ==========================================================
-     * PUBLIC STATE
-     * ========================================================== */
-
-    try {
-        window.__DNA_SHIELD__ = true;
-        window.__DNA_SHIELD_VERSION__ = VERSION;
-        window.__DNA_SHIELD_SAFE__ = true;
-    } catch (_) {}
-
-    /* ==========================================================
-     * CSS — MINIMAL SCOPE
+     * CSS ACCELERATOR
      * ==========================================================
      *
-     * The previous version applied both animation and transition
-     * delay rules to every element and pseudo-element. That creates
-     * avoidable style matching/recalculation pressure on large DOMs.
-     *
-     * This version only touches animation-delay when requested.
-     * Transition-delay is left alone.
-     *
-     * No duration override is used as a browser fallback because
-     * 1ms !important transitions are just as capable of breaking
-     * application interaction state as finish().
+     * Durations are forced to CONFIG.durationMs instead of 0s.
+     * At 0s browsers skip transitionrun/transitionstart entirely,
+     * which hangs frameworks waiting for those events. At 10 ms the
+     * transition still happens and every event fires - it is simply
+     * finished before the eye can see. iteration-count 1 keeps
+     * clamped infinite animations from strobing.
      * ========================================================== */
 
-    let CSS = '';
+    var STYLE_ID = '__DNA_SHIELD__';
+    var styleEl = null;
+    var styleSheet = null;
+    var styleObserver = null;
 
-    if (CONFIG.zeroAnimationDelays) {
-        CSS += `
-html * {
-    animation-delay: 0s !important;
-    -webkit-animation-delay: 0s !important;
-}
-`;
+    /**
+     * Build the acceleration stylesheet from the config.
+     *
+     * @returns {string} CSS text.
+     */
+    function buildCSS() {
+        var css = '';
+
+        if (CONFIG.instantScroll) {
+            css += 'html{scroll-behavior:auto !important}';
+        }
+
+        /*
+         * Durations are only forced for a finite numeric config.
+         * Anything else (null, undefined) means "leave durations to
+         * the site" - never an accidental 0s, which would suppress
+         * transition events and hang framework state machines.
+         */
+        if (
+            typeof CONFIG.durationMs === 'number' &&
+            isFinite(CONFIG.durationMs) &&
+            CONFIG.durationMs >= 0
+        ) {
+            var ms = CONFIG.durationMs;
+            if (ms > 1000) {
+                ms = 1000;
+            }
+            var dur = (ms / 1000) + 's';
+            css += '*,*::before,*::after{' +
+                'animation-duration:' + dur + ' !important;' +
+                'transition-duration:' + dur + ' !important}';
+        }
+
+        if (CONFIG.zeroDelays) {
+            css += '*,*::before,*::after{' +
+                'animation-delay:0s !important;' +
+                'transition-delay:0s !important}';
+        }
+
+        if (CONFIG.singleIteration) {
+            css += '*,*::before,*::after{' +
+                'animation-iteration-count:1 !important}';
+        }
+
+        return css;
     }
 
-    if (CONFIG.instantScroll) {
-        CSS += `
-html,
-body {
-    scroll-behavior: auto !important;
-}
-`;
-    }
-
-    /* ==========================================================
-     * STYLE INSTALLATION
-     * ========================================================== */
-
-    let styleEl = null;
-    let styleObserver = null;
-
+    /**
+     * Install the stylesheet, preferring constructed stylesheets
+     * (immune to strict CSP) and falling back to a style element.
+     *
+     * @returns {void}
+     */
     function install() {
-        if (!ACTIVE || !CSS) {
+        if (!ACTIVE) {
             return;
         }
 
+        var css = buildCSS();
+        if (!css) {
+            return;
+        }
+
+        /* Constructed stylesheet path (Chromium, Safari 16.4+, FF 101+). */
+        try {
+            if (
+                !styleSheet &&
+                typeof CSSStyleSheet === 'function' &&
+                document.adoptedStyleSheets
+            ) {
+                styleSheet = new CSSStyleSheet();
+                styleSheet.replaceSync(css);
+                var sheets = document.adoptedStyleSheets.slice();
+                sheets.push(styleSheet);
+                document.adoptedStyleSheets = sheets;
+            }
+            if (styleSheet) {
+                return;
+            }
+        } catch (_) {
+            styleSheet = null;
+        }
+
+        /* Style element path. */
         try {
             if (styleEl && styleEl.isConnected) {
                 return;
             }
 
             if (!styleEl) {
-                const existing = document.getElementById(STYLE_ID);
-
-                if (existing) {
-                    styleEl = existing;
-                } else {
-                    styleEl = document.createElement('style');
-                    styleEl.id = STYLE_ID;
-                    styleEl.textContent = CSS;
-                }
+                styleEl = document.getElementById(STYLE_ID) ||
+                    document.createElement('style');
+                styleEl.id = STYLE_ID;
+                styleEl.textContent = css;
             }
 
-            const parent = document.head || document.documentElement;
-
+            var parent = document.head || document.documentElement;
             if (parent && !styleEl.isConnected) {
                 parent.appendChild(styleEl);
             }
-        } catch (_) {
-            /* Fail silently. The page must keep working. */
-        }
+        } catch (_) {}
     }
 
-    install();
+    /**
+     * True when the stylesheet is live in the document.
+     *
+     * @returns {boolean} Installation state.
+     */
+    function isInstalled() {
+        try {
+            if (styleSheet) {
+                var sheets = document.adoptedStyleSheets;
+                if (sheets && sheets.indexOf(styleSheet) !== -1) {
+                    return true;
+                }
+                return false;
+            }
+            if (styleEl) {
+                return !!styleEl.isConnected;
+            }
+        } catch (_) {}
+        return false;
+    }
+
+    /**
+     * Observe DOM changes so a page removing the stylesheet gets it
+     * reinstalled. Subtree childList is required - removals from
+     * <head> are not direct children of <html>.
+     *
+     * @returns {void}
+     */
+    function startObserver() {
+        if (!ACTIVE || styleObserver || typeof MutationObserver !== 'function') {
+            return;
+        }
+
+        try {
+            styleObserver = new MutationObserver(function () {
+                if (!isInstalled()) {
+                    install();
+                }
+            });
+
+            if (document.documentElement) {
+                styleObserver.observe(document.documentElement, {
+                    childList: true,
+                    subtree: true
+                });
+            }
+        } catch (_) {}
+    }
 
     /* ==========================================================
-     * ANIMATION ACCELERATION
+     * ANIMATION FAST-FORWARD (Web Animations API)
      * ==========================================================
      *
-     * Critical difference from 2.1:
-     *
-     * 1. Animation events NEVER call finish() synchronously.
-     * 2. CSS transitions are ignored unless explicitly enabled.
-     * 3. Animation work is queued and spread across animation frames.
-     * 4. We do not call document.getAnimations() for normal operation.
-     *
-     * This prevents re-entrant animationend/transitionend callbacks
-     * from running in the middle of click/focus/state-change handlers.
+     * animationstart handlers never call finish() synchronously.
+     * Work is queued and spread across animation frames so page
+     * state machines are never re-entered mid-event.
      * ========================================================== */
 
-    const handled =
-        typeof WeakSet === 'function' ? new WeakSet() : null;
+    var handled = typeof WeakSet === 'function' ? new WeakSet() : null;
+    var queued = typeof WeakSet === 'function' ? new WeakSet() : null;
+    var finishQueue = [];
+    var finishFrame = 0;
+    var MAX_FINISHES_PER_FRAME = 16;
 
-    const queued =
-        typeof WeakSet === 'function' ? new WeakSet() : null;
-
-    const finishQueue = [];
-    let finishFrame = 0;
-
+    /**
+     * True when the animation object is a CSS animation.
+     *
+     * @param {Animation} anim Candidate animation.
+     * @returns {boolean} Detection result.
+     */
     function isCSSAnimation(anim) {
         try {
-            /*
-             * CSSAnimation instances expose animationName.
-             * CSS transitions generally expose transitionProperty instead.
-             */
             return !!anim && typeof anim.animationName === 'string';
         } catch (_) {
             return false;
         }
     }
 
+    /**
+     * True when the animation object is a CSS transition.
+     *
+     * @param {Animation} anim Candidate animation.
+     * @returns {boolean} Detection result.
+     */
     function isTransition(anim) {
         try {
             return !!anim && typeof anim.transitionProperty === 'string';
@@ -269,6 +381,12 @@ body {
         }
     }
 
+    /**
+     * Queue an animation for finishing on the next animation frame.
+     *
+     * @param {Animation} anim Animation to fast-forward.
+     * @returns {void}
+     */
     function scheduleFinish(anim) {
         if (!anim) {
             return;
@@ -284,12 +402,18 @@ body {
 
             finishQueue.push(anim);
 
-            if (!finishFrame) {
+            if (!finishFrame && typeof requestAnimationFrame === 'function') {
                 finishFrame = requestAnimationFrame(flushFinishQueue);
             }
         } catch (_) {}
     }
 
+    /**
+     * Finish queued animations, limited per frame to keep the main
+     * thread responsive under animation bursts.
+     *
+     * @returns {void}
+     */
     function flushFinishQueue() {
         finishFrame = 0;
 
@@ -298,14 +422,10 @@ body {
             return;
         }
 
-        let processed = 0;
-        const limit = Math.max(
-            1,
-            Number(CONFIG.maxFinishesPerFrame) || 1
-        );
+        var processed = 0;
 
-        while (finishQueue.length && processed < limit) {
-            const anim = finishQueue.shift();
+        while (finishQueue.length && processed < MAX_FINISHES_PER_FRAME) {
+            var anim = finishQueue.shift();
 
             try {
                 if (queued) {
@@ -314,60 +434,53 @@ body {
             } catch (_) {}
 
             try {
-                /*
-                 * Re-read state immediately before finishing. The page
-                 * may have cancelled/paused the animation since it was
-                 * queued.
-                 */
+                /* Re-read state: the page may have cancelled/paused it. */
                 if (!anim || anim.playState !== 'running') {
                     continue;
                 }
 
-                let timing = null;
-
+                var timing = null;
                 if (
                     anim.effect &&
                     typeof anim.effect.getComputedTiming === 'function'
                 ) {
                     timing = anim.effect.getComputedTiming();
                 }
-
                 if (!timing) {
                     continue;
                 }
 
-                const endTime = Number(timing.endTime);
-                const activeDuration = Number(timing.activeDuration);
-                const infinite =
+                var endTime = Number(timing.endTime);
+                var activeDuration = Number(timing.activeDuration);
+                var infinite =
                     timing.iterations === Infinity ||
                     !isFinite(endTime) ||
                     !isFinite(activeDuration);
 
-                if (infinite) {
+                /* Infinite animations are left to CSS clamping. */
+                if (infinite || endTime <= 0) {
                     continue;
                 }
 
-                if (endTime <= Number(CONFIG.minDurationMs) || endTime <= 0) {
-                    continue;
-                }
-
-                /*
-                 * finish() is now outside the original animationstart
-                 * event stack, which avoids re-entrant application state
-                 * changes during pointer/click/focus processing.
-                 */
                 anim.finish();
                 processed++;
-            } catch (_) {
-                /* Exotic effects are left alone. */
-            }
+            } catch (_) {}
         }
 
-        if (finishQueue.length) {
+        if (finishQueue.length && typeof requestAnimationFrame === 'function') {
             finishFrame = requestAnimationFrame(flushFinishQueue);
         }
     }
 
+    /**
+     * Decide what to do with one animation: skip transitions and
+     * infinite ones, queue finite ones.
+     *
+     * @param {Animation} anim Animation to consider.
+     * @param {boolean} allowScripted True to also accelerate
+     *        script-created (element.animate) animations.
+     * @returns {void}
+     */
     function accelerate(anim, allowScripted) {
         if (!anim) {
             return;
@@ -386,58 +499,34 @@ body {
 
         try {
             if (isTransition(anim)) {
-                if (!CONFIG.accelerateTransitions) {
-                    return;
-                }
-
-                /*
-                 * Even when explicitly enabled, transitions are queued
-                 * rather than finished synchronously.
-                 */
-                if (anim.playState === 'running') {
-                    scheduleFinish(anim);
-                }
-
                 return;
             }
 
-            if (!isCSSAnimation(anim) && allowScripted !== true) {
-                /*
-                 * Script-created Animation objects are intentionally not
-                 * touched by event handling. Only the optional sweep
-                 * (accelerateScriptedAnimations) passes allowScripted.
-                 */
+            if (!isCSSAnimation(anim) && !CONFIG.accelerateScriptedAnimations) {
+                return;
+            }
+            if (!isCSSAnimation(anim) && !allowScripted) {
                 return;
             }
 
-            let timing = null;
-
+            var timing = null;
             if (
                 anim.effect &&
                 typeof anim.effect.getComputedTiming === 'function'
             ) {
                 timing = anim.effect.getComputedTiming();
             }
-
             if (!timing) {
                 return;
             }
 
-            const infinite =
+            var endTime = Number(timing.endTime);
+            var infinite =
                 timing.iterations === Infinity ||
-                !isFinite(Number(timing.endTime)) ||
+                !isFinite(endTime) ||
                 !isFinite(Number(timing.activeDuration));
 
-            if (infinite) {
-                if (CONFIG.loopSpeed > 1) {
-                    try {
-                        if (typeof anim.updatePlaybackRate === 'function') {
-                            anim.updatePlaybackRate(CONFIG.loopSpeed);
-                        } else {
-                            anim.playbackRate = CONFIG.loopSpeed;
-                        }
-                    } catch (_) {}
-                }
+            if (infinite || endTime <= 0) {
                 return;
             }
 
@@ -445,36 +534,33 @@ body {
                 return;
             }
 
-            const endTime = Number(timing.endTime);
-
-            if (
-                !isFinite(endTime) ||
-                endTime <= Number(CONFIG.minDurationMs) ||
-                endTime <= 0
-            ) {
-                return;
-            }
-
             scheduleFinish(anim);
         } catch (_) {}
     }
 
-    function accelerateTarget(target, animationName) {
+    /**
+     * Accelerate every animation on one element, optionally only the
+     * one matching a CSS animation name.
+     *
+     * @param {Element} target Element holding animations.
+     * @param {string} [animationName] Filter by animation name.
+     * @param {boolean} [allowScripted] Include scripted animations.
+     * @returns {void}
+     */
+    function accelerateTarget(target, animationName, allowScripted) {
         if (!target || typeof target.getAnimations !== 'function') {
             return;
         }
 
-        let list;
-
+        var list;
         try {
             list = target.getAnimations();
         } catch (_) {
             return;
         }
 
-        for (let i = 0; i < list.length; i++) {
-            const anim = list[i];
-
+        for (var i = 0; i < list.length; i++) {
+            var anim = list[i];
             try {
                 if (
                     animationName &&
@@ -484,66 +570,30 @@ body {
                     continue;
                 }
             } catch (_) {}
-
-            accelerate(anim);
+            accelerate(anim, allowScripted);
         }
     }
 
-    function onAnimationEvent(e) {
-        /*
-         * Only process actual CSS animation starts by default.
-         * Transition events are deliberately not observed unless the
-         * user explicitly enables accelerateTransitions.
-         */
+    /**
+     * animationstart handler: fast-forward the starting CSS animation.
+     *
+     * @param {AnimationEvent} e Event with target and animationName.
+     * @returns {void}
+     */
+    function onAnimationStart(e) {
         if (!e || !e.target) {
             return;
         }
-
-        accelerateTarget(e.target, e.animationName || '');
+        accelerateTarget(e.target, e.animationName || '', false);
     }
 
-    function onTransitionEvent(e) {
-        if (!CONFIG.accelerateTransitions || !e || !e.target) {
-            return;
-        }
-
-        accelerateTarget(e.target);
-    }
-
-    function hookEvents() {
-        if (!ACTIVE || typeof document.addEventListener !== 'function') {
-            return;
-        }
-
-        try {
-            document.addEventListener(
-                'animationstart',
-                onAnimationEvent,
-                { capture: true, passive: true }
-            );
-        } catch (_) {}
-
-        if (CONFIG.accelerateTransitions) {
-            const types = ['transitionrun', 'transitionstart'];
-
-            for (let i = 0; i < types.length; i++) {
-                try {
-                    document.addEventListener(
-                        types[i],
-                        onTransitionEvent,
-                        { capture: true, passive: true }
-                    );
-                } catch (_) {}
-            }
-        }
-    }
-
-    hookEvents();
-
-    /* ==========================================================
-     * MANUAL / OPTIONAL SWEEP
-     * ========================================================== */
-
+    /**
+     * Sweep the whole document and queue every finite animation.
+     * Catches scripted (element.animate) animations and anything that
+     * started before the listeners were attached.
+     *
+     * @returns {void}
+     */
     function sweep() {
         if (!ACTIVE) {
             return;
@@ -553,121 +603,632 @@ body {
             if (typeof document.getAnimations !== 'function') {
                 return;
             }
-
-            const list = document.getAnimations();
-
-            /*
-             * Queue only. Never finish the entire page synchronously.
-             * The sweep is the only caller allowed to accelerate
-             * script-created (element.animate) animations.
-             */
-            for (let i = 0; i < list.length; i++) {
+            var list = document.getAnimations();
+            for (var i = 0; i < list.length; i++) {
                 accelerate(list[i], true);
             }
         } catch (_) {}
     }
 
     /* ==========================================================
-     * STYLESHEET RECOVERY
+     * NAVIGATION ACCELERATOR
      * ==========================================================
      *
-     * Only observe direct child changes on the document element.
-     * The previous implementation attached observers to both
-     * <html> and <head>, causing duplicate mutation callbacks.
+     * Chromium: inject Speculation Rules (prerender + prefetch on
+     * hover, managed entirely by the browser). Other engines: manual
+     * same-origin prefetch on hover/pointerdown, preconnect for
+     * cross-origin links.
      * ========================================================== */
 
-    function startObserver() {
-        if (!ACTIVE || !CSS || typeof MutationObserver !== 'function') {
+    var RULES_ID = '__DNA_SHIELD_RULES__';
+    var hinted = typeof Set === 'function' ? new Set() : [];
+    var hintCount = 0;
+    var pendingTimer = 0;
+    var pendingHref = '';
+
+    /**
+     * True when the Speculation Rules API is available.
+     *
+     * @returns {boolean} API support.
+     */
+    function supportsSpeculation() {
+        try {
+            return (
+                typeof HTMLScriptElement === 'function' &&
+                typeof HTMLScriptElement.supports === 'function' &&
+                HTMLScriptElement.supports('speculationrules')
+            );
+        } catch (_) {
+            return false;
+        }
+    }
+
+    /**
+     * Inject declarative prerender/prefetch document rules. Ignored
+     * by browsers without support, so it is safe everywhere.
+     *
+     * @returns {void}
+     */
+    function injectSpeculationRules() {
+        if (!ACTIVE || !CONFIG.speculationRules || !supportsSpeculation()) {
             return;
         }
 
         try {
-            if (styleObserver) {
+            if (document.getElementById(RULES_ID)) {
                 return;
             }
 
-            styleObserver = new MutationObserver(function () {
-                if (!styleEl || !styleEl.isConnected) {
-                    install();
-                }
-            });
+            var EXCLUDE = '[download], [rel~="nofollow"], [rel~="noprefetch"], ' +
+                '[href*="logout"], [href*="signout"], [href*="logoff"]';
 
-            if (document.documentElement) {
-                styleObserver.observe(document.documentElement, {
-                    childList: true
-                });
+            var rules = {
+                prefetch: [{
+                    source: 'document',
+                    where: {
+                        and: [{
+                            href_matches: '/*'
+                        }, {
+                            not: { selector_matches: EXCLUDE }
+                        }]
+                    },
+                    eagerness: CONFIG.speculationEagerness
+                }],
+                prerender: [{
+                    source: 'document',
+                    where: {
+                        and: [{
+                            href_matches: '/*'
+                        }, {
+                            not: { selector_matches: EXCLUDE }
+                        }]
+                    },
+                    eagerness: CONFIG.speculationEagerness
+                }]
+            };
+
+            var script = document.createElement('script');
+            script.id = RULES_ID;
+            script.type = 'application/speculationrules';
+            script.textContent = JSON.stringify(rules);
+
+            var parent = document.head || document.documentElement;
+            if (parent) {
+                parent.appendChild(script);
             }
         } catch (_) {}
     }
 
-    function onReady() {
-        install();
-        startObserver();
+    /**
+     * True when the visitor is on a constrained connection and
+     * prefetching would cost more than it saves.
+     *
+     * @returns {boolean} True to skip prefetching.
+     */
+    function connectionConstrained() {
+        try {
+            var c = navigator.connection;
+            if (!c) {
+                return false;
+            }
+            if (c.saveData) {
+                return true;
+            }
+            var t = String(c.effectiveType || '');
+            return t === 'slow-2g' || t === '2g';
+        } catch (_) {
+            return false;
+        }
     }
 
-    try {
-        if (document.readyState === 'loading') {
-            document.addEventListener(
-                'DOMContentLoaded',
-                onReady,
-                { once: true, passive: true }
-            );
+    /**
+     * Mark a URL as already hinted.
+     *
+     * @param {string} key Dedupe key.
+     * @returns {void}
+     */
+    function markHinted(key) {
+        hintCount++;
+        if (hinted.add) {
+            hinted.add(key);
         } else {
-            onReady();
+            hinted.push(key);
         }
-    } catch (_) {}
+    }
 
-    try {
-        window.addEventListener(
-            'load',
-            function () {
-                install();
-            },
-            { once: true, passive: true }
-        );
-    } catch (_) {}
+    /**
+     * True when this URL was already hinted.
+     *
+     * @param {string} key Dedupe key.
+     * @returns {boolean} Seen before.
+     */
+    function isHinted(key) {
+        if (hinted.indexOf) {
+            return hinted.indexOf(key) !== -1;
+        }
+        return hinted.has(key);
+    }
 
-    /* ==========================================================
-     * OPTIONAL SWEEP FOR SCRIPTED (element.animate) ANIMATIONS
-     * ========================================================== */
-
-    let sweepTimer = null;
-
-    if (
-        ACTIVE &&
-        typeof document.getAnimations === 'function' &&
-        CONFIG.accelerateScriptedAnimations
-    ) {
+    /**
+     * Append a <link> hint to the document.
+     *
+     * @param {string} rel Link relation (prefetch/preconnect).
+     * @param {string} href Target URL or origin.
+     * @returns {void}
+     */
+    function appendHint(rel, href) {
         try {
-            sweepTimer = setInterval(function () {
-                if (document.visibilityState === 'hidden') {
-                    return;
+            var link = document.createElement('link');
+            link.rel = rel;
+            link.href = href;
+            var parent = document.head || document.documentElement;
+            if (parent) {
+                parent.appendChild(link);
+            }
+        } catch (_) {}
+    }
+
+    /**
+     * Large media downloads never belong in a hover prefetch.
+     *
+     * @param {URL} url Parsed target.
+     * @returns {boolean} True when the path looks like heavy media.
+     */
+    function isHeavyMedia(url) {
+        return /\.(zip|rar|7z|tar|gz|tgz|bz2|xz|dmg|exe|msi|apk|iso|img|mp4|mkv|avi|mov|webm|mp3|flac|ogg|wav|pdf|epub)([?#]|$)/i.test(url.pathname);
+    }
+
+    /**
+     * Validate an anchor and return what kind of hint it deserves.
+     *
+     * @param {HTMLAnchorElement} a Anchor being hovered/pressed.
+     * @returns {{kind: string, url: URL}|null} Hint plan or null.
+     */
+    function planHint(a) {
+        if (!a || !a.href || a.hasAttribute('download')) {
+            return null;
+        }
+
+        var rel = ' ' + String(a.rel || '') + ' ';
+        if (rel.indexOf(' nofollow ') !== -1 || rel.indexOf(' noprefetch ') !== -1) {
+            return null;
+        }
+
+        var url;
+        try {
+            url = new URL(a.href, location.href);
+        } catch (_) {
+            return null;
+        }
+
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+            return null;
+        }
+
+        /*
+         * State-changing GET links (logout endpoints) must never be
+         * prefetched or prerendered - fetching them would act.
+         */
+        if (/logout|signout|sign-out|logoff|log-off|log_out/i.test(
+            url.pathname + url.search
+        )) {
+            return null;
+        }
+
+        /* Same page (only a hash difference) is already instant. */
+        if (
+            url.pathname === location.pathname &&
+            url.search === location.search
+        ) {
+            return null;
+        }
+
+        var sameOrigin = url.origin === location.origin;
+        if (!sameOrigin && !CONFIG.preconnect) {
+            return null;
+        }
+
+        if (sameOrigin) {
+            if (!CONFIG.prefetch || isHeavyMedia(url)) {
+                return null;
+            }
+            return { kind: 'prefetch', url: url };
+        }
+
+        return { kind: 'preconnect', url: url };
+    }
+
+    /**
+     * Run a hint plan immediately: dedupe, cap, append the link.
+     *
+     * @param {{kind: string, url: URL}} plan Hint plan.
+     * @returns {void}
+     */
+    function applyHint(plan) {
+        try {
+            var key = plan.kind === 'preconnect'
+                ? plan.url.origin
+                : plan.url.href;
+
+            if (isHinted(key)) {
+                return;
+            }
+            if (hintCount >= CONFIG.maxHintsPerPage) {
+                return;
+            }
+
+            markHinted(key);
+            appendHint(
+                plan.kind,
+                plan.kind === 'preconnect' ? plan.url.origin : plan.url.href
+            );
+        } catch (_) {}
+    }
+
+    /**
+     * pointerover handler: remember the link, start the hover-intent
+     * timer. Mobile taps skip this path via pointerdown.
+     *
+     * @param {PointerEvent} e Pointer event.
+     * @returns {void}
+     */
+    function onPointerOver(e) {
+        if (!ACTIVE || !CONFIG.prefetch || connectionConstrained()) {
+            return;
+        }
+
+        var a = null;
+        try {
+            a = e.target && typeof e.target.closest === 'function'
+                ? e.target.closest('a[href]')
+                : null;
+        } catch (_) {}
+
+        var plan = planHint(a);
+        if (!plan) {
+            return;
+        }
+
+        var key = plan.kind === 'preconnect' ? plan.url.origin : plan.url.href;
+        if (isHinted(key)) {
+            return;
+        }
+
+        if (pendingHref === key) {
+            return;
+        }
+        cancelPending();
+
+        pendingHref = key;
+        pendingTimer = setTimeout(function () {
+            pendingTimer = 0;
+            pendingHref = '';
+            /* Re-plan at fire time: the DOM may have changed. */
+            var later = planHint(a);
+            if (later) {
+                applyHint(later);
+            }
+        }, Math.max(0, Number(CONFIG.prefetchHoverDelayMs) || 0));
+    }
+
+    /**
+     * pointerout handler: the pointer left the link, cancel the
+     * intent timer. Movement between children of the same link also
+     * fires pointerout - keep the timer when the pointer is still
+     * inside an anchor.
+     *
+     * @param {PointerEvent} e Pointer event.
+     * @returns {void}
+     */
+    function onPointerOut(e) {
+        try {
+            var to = e && e.relatedTarget;
+            if (
+                to &&
+                typeof to.closest === 'function' &&
+                to.closest('a[href]')
+            ) {
+                return;
+            }
+        } catch (_) {}
+        cancelPending();
+    }
+
+    /**
+     * Cancel a pending hover-intent timer.
+     *
+     * @returns {void}
+     */
+    function cancelPending() {
+        if (pendingTimer) {
+            clearTimeout(pendingTimer);
+            pendingTimer = 0;
+        }
+        pendingHref = '';
+    }
+
+    /**
+     * pointerdown handler: no delay on touch/press - the click fires
+     * roughly 100 ms later, so prefetch right now.
+     *
+     * @param {PointerEvent} e Pointer event.
+     * @returns {void}
+     */
+    function onPointerDown(e) {
+        if (!ACTIVE || !CONFIG.prefetch || connectionConstrained()) {
+            return;
+        }
+
+        var a = null;
+        try {
+            a = e.target && typeof e.target.closest === 'function'
+                ? e.target.closest('a[href]')
+                : null;
+        } catch (_) {}
+
+        var plan = planHint(a);
+        if (plan) {
+            cancelPending();
+            applyHint(plan);
+        }
+    }
+
+    /**
+     * Scan the DOM after load and preconnect to the most referenced
+     * resource origins so lazy-loaded assets start instantly.
+     *
+     * @returns {void}
+     */
+    function scanOrigins() {
+        if (!ACTIVE || !CONFIG.preconnectScan) {
+            return;
+        }
+
+        try {
+            var nodes = document.querySelectorAll(
+                'a[href], img[src], script[src], link[href]'
+            );
+            var counts = {};
+            var order = [];
+
+            for (var i = 0; i < nodes.length; i++) {
+                var raw = nodes[i].getAttribute('href') ||
+                    nodes[i].getAttribute('src');
+                if (!raw) {
+                    continue;
                 }
+
+                var url;
+                try {
+                    url = new URL(raw, location.href);
+                } catch (_) {
+                    continue;
+                }
+
+                if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+                    continue;
+                }
+                if (url.origin === location.origin) {
+                    continue;
+                }
+                if (isHinted(url.origin)) {
+                    continue;
+                }
+
+                var key = url.origin;
+                if (!counts[key]) {
+                    counts[key] = 0;
+                    order.push(key);
+                }
+                counts[key]++;
+            }
+
+            order.sort(function (a, b) {
+                return counts[b] - counts[a];
+            });
+
+            var added = 0;
+            for (var j = 0; j < order.length && added < CONFIG.maxPreconnects; j++) {
+                if (hintCount >= CONFIG.maxHintsPerPage) {
+                    break;
+                }
+                markHinted(order[j]);
+                appendHint('preconnect', order[j]);
+                added++;
+            }
+        } catch (_) {}
+    }
+
+    /**
+     * Public manual prefetch for one URL.
+     *
+     * @param {string} href Absolute or relative URL.
+     * @returns {void}
+     */
+    function prefetch(href) {
+        try {
+            var url = new URL(href, location.href);
+            if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+                return;
+            }
+            applyHint({ kind: 'prefetch', url: url });
+        } catch (_) {}
+    }
+
+    /**
+     * focusin handler: keyboard users tab to a link - warm it too.
+     *
+     * @param {FocusEvent} e Focus event.
+     * @returns {void}
+     */
+    function onFocusIn(e) {
+        if (!ACTIVE || !CONFIG.prefetch || connectionConstrained()) {
+            return;
+        }
+
+        try {
+            var t = e.target;
+            var a = t && typeof t.matches === 'function' && t.matches('a[href]')
+                ? t
+                : (typeof t.closest === 'function' ? t.closest('a[href]') : null);
+            var plan = planHint(a);
+            if (plan) {
+                cancelPending();
+                applyHint(plan);
+            }
+        } catch (_) {}
+    }
+
+    /**
+     * pageshow handler: a back/forward-cache restore replays running
+     * animations with the stylesheet possibly gone - reinstall and
+     * re-sweep so restored pages are instant too.
+     *
+     * @param {PageTransitionEvent} e Pageshow event.
+     * @returns {void}
+     */
+    function onPageShow(e) {
+        if (!ACTIVE) {
+            return;
+        }
+        try {
+            if (e && e.persisted) {
+                install();
+                injectSpeculationRules();
                 sweep();
-            }, Math.max(250, Number(CONFIG.sweepIntervalMs) || 1000));
+            }
         } catch (_) {}
     }
 
     /* ==========================================================
-     * HOTKEY: Ctrl + Alt + Shift + D
+     * WIRING
      * ========================================================== */
 
-    try {
-        window.addEventListener(
-            'keydown',
-            function (e) {
-                if (
-                    e.ctrlKey &&
-                    e.altKey &&
-                    e.shiftKey &&
-                    (e.key === 'D' || e.key === 'd')
-                ) {
-                    setDisabled(ACTIVE);
+    /**
+     * Remove the stylesheet hint script and every listener, and
+     * disconnect observers. Used by the public API.
+     *
+     * @returns {void}
+     */
+    function stop() {
+        cancelPending();
+
+        try {
+            if (styleObserver) {
+                styleObserver.disconnect();
+                styleObserver = null;
+            }
+        } catch (_) {}
+
+        try {
+            if (styleEl && styleEl.isConnected) {
+                styleEl.parentNode.removeChild(styleEl);
+            }
+            if (styleSheet) {
+                var sheets = document.adoptedStyleSheets;
+                if (sheets) {
+                    var idx = sheets.indexOf(styleSheet);
+                    if (idx !== -1) {
+                        sheets.splice(idx, 1);
+                        document.adoptedStyleSheets = sheets;
+                    }
                 }
-            },
-            { capture: true, passive: true }
-        );
-    } catch (_) {}
+            }
+        } catch (_) {}
+
+        for (var i = 0; i < listeners.length; i++) {
+            try {
+                listeners[i][0].removeEventListener(
+                    listeners[i][1],
+                    listeners[i][2],
+                    listeners[i][3]
+                );
+            } catch (_) {}
+        }
+        listeners.length = 0;
+        finishQueue.length = 0;
+
+        try {
+            var rules = document.getElementById(RULES_ID);
+            if (rules && rules.parentNode) {
+                rules.parentNode.removeChild(rules);
+            }
+        } catch (_) {}
+    }
+
+    /**
+     * DOMContentLoaded work: late installs and the first sweep.
+     *
+     * @returns {void}
+     */
+    function onReady() {
+        install();
+        injectSpeculationRules();
+        startObserver();
+        sweep();
+    }
+
+    if (ACTIVE) {
+        install();
+        injectSpeculationRules();
+
+        listen(document, 'animationstart', onAnimationStart, {
+            capture: true, passive: true
+        });
+
+        /*
+         * Pointer Events are the primary input path. Browsers old
+         * enough to lack them get the classic mouse events instead,
+         * so prefetching works everywhere Tampermonkey runs.
+         */
+        var pointerType =
+            typeof window.PointerEvent === 'function' ? 'pointer' : 'mouse';
+        listen(document, pointerType + 'over', onPointerOver, {
+            capture: true, passive: true
+        });
+        listen(document, pointerType + 'out', onPointerOut, {
+            capture: true, passive: true
+        });
+        listen(document, pointerType + 'down', onPointerDown, {
+            capture: true, passive: true
+        });
+
+        /* Keyboard focus warms links too. */
+        listen(document, 'focusin', onFocusIn, {
+            capture: true, passive: true
+        });
+
+        /* Back/forward-cache restores. */
+        listen(window, 'pageshow', onPageShow, { passive: true });
+
+        try {
+            if (document.readyState === 'loading') {
+                listen(document, 'DOMContentLoaded', onReady, { once: true });
+            } else {
+                onReady();
+            }
+        } catch (_) {}
+
+        listen(window, 'load', function () {
+            install();
+            sweep();
+            setTimeout(scanOrigins, 1500);
+        }, { once: true });
+    }
+
+    /* Hotkey: Ctrl + Alt + Shift + D toggles DNA Shield on this site. */
+    listen(window, 'keydown', function (e) {
+        try {
+            if (
+                e.ctrlKey &&
+                e.altKey &&
+                e.shiftKey &&
+                (e.key === 'D' || e.key === 'd')
+            ) {
+                setDisabled(ACTIVE);
+            }
+        } catch (_) {}
+    }, { capture: true, passive: true });
 
     /* ==========================================================
      * PUBLIC API
@@ -675,28 +1236,26 @@ body {
 
     try {
         window.DNAShield = {
-
-            version: VERSION,
             enabled: ACTIVE,
-            mode: 'queued-css-animation-fast-forward',
+            mode: 'clamp-0.01s + waapi-finish + prerender/prefetch',
 
-            zeroGrant: true,
-            applicationSafe: true,
-
-            patchesBrowserAPIs: false,
+            /* What DNA Shield does NOT touch. */
+            patchesNativeAPIs: false,
             patchesTimers: false,
             patchesNetwork: false,
             patchesEvents: false,
             patchesFrameworks: false,
-            patchesForms: false,
 
             config: CONFIG,
 
-            /* Manually fast-forward currently animating CSS animations. */
+            /* Fast-forward every finite animation right now. */
             sweep: sweep,
 
-            /* Queue acceleration for one element's animations. */
-            accelerate: accelerateTarget,
+            /* Manually prefetch one URL. */
+            prefetch: prefetch,
+
+            /* Tear everything down on this page. */
+            stop: stop,
 
             disableHere: function () {
                 setDisabled(true);
@@ -704,22 +1263,7 @@ body {
 
             enableHere: function () {
                 setDisabled(false);
-            },
-
-            stopSweep: function () {
-                if (sweepTimer) {
-                    clearInterval(sweepTimer);
-                    sweepTimer = null;
-                }
-
-                if (finishFrame) {
-                    cancelAnimationFrame(finishFrame);
-                    finishFrame = 0;
-                }
-
-                finishQueue.length = 0;
             }
-
         };
     } catch (_) {}
 
