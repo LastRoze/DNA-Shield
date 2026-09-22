@@ -10,23 +10,25 @@ Everything DNA Shield does targets one bar: **near instant means 0.1 seconds or 
 
 ## What it does
 
-### UI animation (CSS)
+### UI animation (CSS + Web Animations API)
 
-- Forces every animation and transition to run at most `0.01s` — durations are clamped, not removed, so `transitionrun`/`transitionstart`/`transitionend` and `animationstart`/`animationend` events still fire and framework state machines (React, Vue, etc.) keep working.
+- Clamps every CSS **transition** to at most `0.01s` — transitions are one-shot UI feedback, so this reads as snappy, and `transitionrun`/`transitionstart`/`transitionend` still fire so framework state machines (React, Vue, etc.) keep working.
 - Zeroes every animation and transition delay — no more waiting before the animation starts.
-- Clamps `animation-iteration-count` to 1 — clamped infinite loops cannot strobe (photosensitivity-safe) and stop burning CPU forever.
+- **Does not clamp CSS animations by default.** Clamping `animation-duration` froze loading spinners mid-rotation and made pages look stuck; instead, finite animations are fast-forwarded through the Web Animations API (`animation.finish()`), which is iteration-aware and fires the correct `animationstart`/`animationend` events — so spinners keep spinning, menus still land, and finite animations still end near-instantly. Set `CONFIG.clampAnimations = true` if you want the maximally stark variant that also kills ambient loops.
 - Kills smooth scrolling (`scroll-behavior: auto`).
+- All rules ship as one universal selector block to keep style-recalc pressure low on huge DOMs.
 - Stylesheet is injected at `document-start`, prefers CSP-immune constructed stylesheets (`adoptedStyleSheets`), and reinstalls itself automatically if a page removes it.
 
 ### JavaScript animation
 
-- Fast-forwards finite animations created with `element.animate()` through the Web Animations API (`animation.finish()`).
-- CSS animations are caught the moment they start (`animationstart`), scripted ones via sweeps on `DOMContentLoaded` and `load`.
+- Fast-forwards finite animations created with `element.animate()` **and** finite CSS animations through the Web Animations API (`animation.finish()`).
+- CSS animations are caught the moment they start (`animationstart`), scripted ones via sweeps on `DOMContentLoaded`, `load`, and back/forward-cache restores.
 - Finishes are queued and spread across animation frames (max 16 per frame) — never executed synchronously inside page event handlers, so page logic is never re-entered mid-interaction.
+- Infinite animations (spinners, ambient loops) are left running — they communicate loading state and cannot be fast-forwarded without freezing or strobing.
 
 ### Navigation
 
-- On Chromium: injects declarative **Speculation Rules** — the browser itself prerenders and prefetches links on hover. Navigating feels like the page was already open, because it was (the next page's JS is already loaded and running before you click — that is what "near instant" really means).
+- On Chromium: injects declarative **Speculation Rules** — the browser itself prerenders and prefetches links on hover. Navigating feels like the page was already open, because it was (the next page's JS is already loaded and running before you click — that is what "near instant" really means). Sites that enforce Trusted Types with a locked policy list (Gmail, other Google apps) are detected and skipped silently — no CSP violation spam.
 - Everywhere else (Firefox, Safari): same-origin links are prefetched after a 65 ms hover-intent delay, and immediately on `pointerdown` (mobile taps get the full head start). Cross-origin links get a preconnect.
 - Keyboard users count too: focusing a link (`focusin`) warms it exactly like hovering.
 - Browsers without Pointer Events fall back to classic `mouseover`/`mousedown` — prefetching works everywhere Tampermonkey runs.

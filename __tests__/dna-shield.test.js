@@ -60,6 +60,7 @@ describe("DNA Shield userscript", () => {
       window.DNAShield.stop();
     }
     delete window.DNAShield;
+    delete window.trustedTypes;
     /* jsdom may lack PointerEvent; force the modern input path. */
     if (typeof window.PointerEvent !== "function") {
       window.PointerEvent = function PointerEventStub() {};
@@ -92,14 +93,11 @@ describe("DNA Shield userscript", () => {
     expect(window.DNAShield.patchesNetwork).toBe(false);
   });
 
-  test("forces every duration to 0.01s and every delay to 0s", () => {
+  test("clamps transitions and delays to 0.01s/0s without freezing animations", () => {
     runScript();
 
     const style = document.getElementById("__DNA_SHIELD__");
     expect(style).not.toBeNull();
-    expect(style.textContent).toEqual(
-      expect.stringContaining("animation-duration:0.01s !important")
-    );
     expect(style.textContent).toEqual(
       expect.stringContaining("transition-duration:0.01s !important")
     );
@@ -110,11 +108,19 @@ describe("DNA Shield userscript", () => {
       expect.stringContaining("transition-delay:0s !important")
     );
     expect(style.textContent).toEqual(
-      expect.stringContaining("animation-iteration-count:1 !important")
-    );
-    expect(style.textContent).toEqual(
       expect.stringContaining("scroll-behavior:auto !important")
     );
+
+    /* Spinners must keep spinning: no animation clamp by default. */
+    expect(style.textContent).not.toEqual(
+      expect.stringContaining("animation-duration")
+    );
+    expect(style.textContent).not.toEqual(
+      expect.stringContaining("animation-iteration-count")
+    );
+
+    /* ONE universal block keeps style-recalc pressure low. */
+    expect(style.textContent.match(/\*,\*::before,\*::after\{/g)).toHaveLength(1);
   });
 
   test("stays completely out of a disabled host or kill-switched site", () => {
@@ -208,6 +214,35 @@ describe("DNA Shield userscript", () => {
     expect(
       document.querySelectorAll('script[type="application/speculationrules"]').length
     ).toBe(1);
+  });
+
+  test("uses a Trusted Types policy when one can be created", () => {
+    HTMLScriptElement.supports = () => true;
+    window.trustedTypes = {
+      createPolicy: () => ({ createScript: (s) => s })
+    };
+
+    runScript();
+
+    expect(
+      document.querySelectorAll('script[type="application/speculationrules"]').length
+    ).toBe(1);
+  });
+
+  test("skips script injection silently under enforced Trusted Types", () => {
+    HTMLScriptElement.supports = () => true;
+    /* Sites like Gmail allow only their own policy names. */
+    window.trustedTypes = {
+      createPolicy: () => {
+        throw new TypeError("Policy creation is disallowed");
+      }
+    };
+
+    expect(() => runScript()).not.toThrow();
+    expect(
+      document.querySelectorAll('script[type="application/speculationrules"]').length
+    ).toBe(0);
+    expect(window.DNAShield.enabled).toBe(true);
   });
 
   test("skips speculation rules on engines without support", () => {

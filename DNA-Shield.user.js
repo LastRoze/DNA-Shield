@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DNA Shield
 // @namespace    DNA Shield
-// @version      1.0
+// @version      1.1
 // @author       Last Roze
 // @description  Dominion With Domination
 // @copyright    ©2020-2026 Yoga Budiman
@@ -30,12 +30,11 @@
     var CONFIG = {
 
         /*
-         * Maximum CSS animation/transition duration in ms.
-         * Everything is forced to run at most this long.
-         * 10 ms is far below the 0.1 s "near instant" bar while
-         * still letting transitionrun/start/end and animationstart/
-         * animationend events fire normally, so framework state
-         * machines keep working.
+         * Maximum CSS transition duration in ms. Transitions are
+         * clamped to at most this long. 10 ms is far below the
+         * 0.1 s "near instant" bar while still letting
+         * transitionrun/start/end events fire normally, so
+         * framework state machines keep working.
          */
         durationMs: 10,
 
@@ -43,9 +42,22 @@
         zeroDelays: true,
 
         /*
-         * Force animation-iteration-count to 1.
-         * Prevents infinite loops from strobing when their duration
-         * is clamped, and stops endless animation CPU burn.
+         * CSS animations are NOT clamped by default - clamping
+         * animation-duration froze loading spinners after one
+         * rotation and made pages look stuck. Instead, finite
+         * animations are fast-forwarded through the Web Animations
+         * API (finish queue below), which respects iteration counts
+         * and fires the correct events. Set clampAnimations to true
+         * to additionally force animation-duration in CSS; ambient
+         * loops will then stop after one pass, which some people
+         * prefer but heavy apps (Gmail, Drive) find stark.
+         */
+        clampAnimations: false,
+
+        /*
+         * With clampAnimations enabled, also force
+         * animation-iteration-count to 1 so clamped infinite loops
+         * cannot strobe (photosensitivity safety).
          */
         singleIteration: true,
 
@@ -173,12 +185,13 @@
      * CSS ACCELERATOR
      * ==========================================================
      *
-     * Durations are forced to CONFIG.durationMs instead of 0s.
-     * At 0s browsers skip transitionrun/transitionstart entirely,
-     * which hangs frameworks waiting for those events. At 10 ms the
-     * transition still happens and every event fires - it is simply
-     * finished before the eye can see. iteration-count 1 keeps
-     * clamped infinite animations from strobing.
+     * Transitions are clamped in CSS (they are one-shot UI feedback
+     * - 0.01 s reads as snappy, and the events still fire). CSS
+     * animations are deliberately left alone: clamping their
+     * duration froze loading spinners and looked broken. Finite CSS
+     * animations are fast-forwarded by the WAAPI finish queue
+     * instead, which is iteration-aware. Everything ships as ONE
+     * universal rule block to keep style-recalc pressure low.
      * ========================================================== */
 
     var STYLE_ID = '__DNA_SHIELD__';
@@ -198,12 +211,15 @@
             css += 'html{scroll-behavior:auto !important}';
         }
 
+        var rules = [];
+
         /*
          * Durations are only forced for a finite numeric config.
          * Anything else (null, undefined) means "leave durations to
          * the site" - never an accidental 0s, which would suppress
          * transition events and hang framework state machines.
          */
+        var dur = null;
         if (
             typeof CONFIG.durationMs === 'number' &&
             isFinite(CONFIG.durationMs) &&
@@ -213,21 +229,27 @@
             if (ms > 1000) {
                 ms = 1000;
             }
-            var dur = (ms / 1000) + 's';
-            css += '*,*::before,*::after{' +
-                'animation-duration:' + dur + ' !important;' +
-                'transition-duration:' + dur + ' !important}';
+            dur = (ms / 1000) + 's';
+        }
+
+        if (dur !== null) {
+            rules.push('transition-duration:' + dur + ' !important');
+            if (CONFIG.clampAnimations) {
+                rules.push('animation-duration:' + dur + ' !important');
+            }
         }
 
         if (CONFIG.zeroDelays) {
-            css += '*,*::before,*::after{' +
-                'animation-delay:0s !important;' +
-                'transition-delay:0s !important}';
+            rules.push('animation-delay:0s !important');
+            rules.push('transition-delay:0s !important');
         }
 
-        if (CONFIG.singleIteration) {
-            css += '*,*::before,*::after{' +
-                'animation-iteration-count:1 !important}';
+        if (CONFIG.clampAnimations && CONFIG.singleIteration) {
+            rules.push('animation-iteration-count:1 !important');
+        }
+
+        if (rules.length) {
+            css += '*,*::before,*::after{' + rules.join(';') + '}';
         }
 
         return css;
@@ -626,6 +648,47 @@
     var pendingTimer = 0;
     var pendingHref = '';
 
+    /*
+     * Trusted Types: sites like Gmail enforce
+     * require-trusted-types-for 'script', so script text must come
+     * from a policy - and those sites usually allow only their own
+     * policy names. If policy creation is blocked, injecting the
+     * rules would spam CSP violations for zero benefit, so DNA
+     * Shield skips script injection there entirely.
+     */
+    var ttPolicy = null;
+    var ttUnavailable = false;
+
+    /**
+     * Return a Trusted Types policy for script text, or null when
+     * injection must be skipped.
+     *
+     * @returns {?Object} Policy wrapper or null.
+     */
+    function scriptPolicy() {
+        if (ttPolicy) {
+            return ttPolicy;
+        }
+        if (ttUnavailable) {
+            return null;
+        }
+
+        try {
+            var tt = window.trustedTypes;
+            if (tt && typeof tt.createPolicy === 'function') {
+                ttPolicy = tt.createPolicy('__dna_shield__', {
+                    createScript: function (s) { return s; }
+                });
+                return ttPolicy;
+            }
+            /* No Trusted Types API at all: plain assignment is fine. */
+            return null;
+        } catch (_) {
+            ttUnavailable = true;
+            return null;
+        }
+    }
+
     /**
      * True when the Speculation Rules API is available.
      *
@@ -690,7 +753,18 @@
             var script = document.createElement('script');
             script.id = RULES_ID;
             script.type = 'application/speculationrules';
-            script.textContent = JSON.stringify(rules);
+
+            var json = JSON.stringify(rules);
+            var policy = scriptPolicy();
+            if (policy) {
+                script.text = policy.createScript(json);
+            } else if (ttUnavailable) {
+                /* Trusted Types enforcement without an allowed policy:
+                   skip instead of spamming CSP violations. */
+                return;
+            } else {
+                script.textContent = json;
+            }
 
             var parent = document.head || document.documentElement;
             if (parent) {
@@ -1234,10 +1308,10 @@
      * PUBLIC API
      * ========================================================== */
 
-    try {
-        window.DNAShield = {
-            enabled: ACTIVE,
-            mode: 'clamp-0.01s + waapi-finish + prerender/prefetch',
+        try {
+            window.DNAShield = {
+                enabled: ACTIVE,
+                mode: 'waapi-finish + transition-clamp + prerender/prefetch',
 
             /* What DNA Shield does NOT touch. */
             patchesNativeAPIs: false,
