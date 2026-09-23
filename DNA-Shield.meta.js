@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DNA Shield
 // @namespace    DNA Shield
-// @version      1.4
+// @version      1.5
 // @author       Last Roze
 // @description  Dominion With Domination
 // @copyright    ©2020-2026 Yoga Budiman
@@ -15,6 +15,16 @@
 // @downloadURL  https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.user.js
 // @supportURL   https://lastroze.github.io/
 // @match        *://*/*
+// @exclude      *://challenges.cloudflare.com/*
+// @exclude      *://*/cdn-cgi/challenge-platform/*
+// @exclude      *://hcaptcha.com/*
+// @exclude      *://*.hcaptcha.com/*
+// @exclude      *://www.google.com/recaptcha/*
+// @exclude      *://www.recaptcha.net/recaptcha/*
+// @exclude      *://recaptcha.net/recaptcha/*
+// @exclude      *://*.arkoselabs.com/*
+// @exclude      *://*.funcaptcha.com/*
+// @exclude      *://*.geetest.com/*
 // @run-at       document-start
 // @grant        none
 // ==/UserScript==

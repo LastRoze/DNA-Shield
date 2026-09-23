@@ -46,10 +46,11 @@ No native APIs are patched, no timers, no `fetch`/XHR, no event defaults, no fra
 
 ### CAPTCHAs are untouchable
 
-Human-verification widgets — slider puzzles (Shopee, AliExpress-style), reCAPTCHA, hCaptcha, Cloudflare Turnstile, GeeTest, Arkose, and anything whose DOM marks it as a captcha/verify/puzzle component — are a permanent exclusion zone, on two layers:
+Human-verification widgets — slider puzzles (Shopee, AliExpress-style), reCAPTCHA, hCaptcha, Cloudflare Turnstile, GeeTest, Arkose, and anything whose DOM marks it as a captcha/verify/puzzle component — are a permanent exclusion zone, on three layers:
 
-1. **JavaScript:** their animations are never fast-forwarded — neither the `animationstart` path nor any sweep touches an animation owned by a captcha element (their challenge logic reads animation timing as a bot signal).
-2. **CSS:** while a captcha widget is on screen, the entire accelerator stylesheet is swapped for a captcha-safe subset (instant scrolling only) and restored the moment it's gone — because slider puzzles are commonly driven by negative `animation-delay` techniques that a universal clamp would destroy.
+1. **Challenge frames:** DNA Shield never runs inside a provider's own challenge document — the Cloudflare Turnstile iframe (`challenges.cloudflare.com`), any `/cdn-cgi/challenge-platform/` page, hCaptcha, reCAPTCHA, Arkose/FunCaptcha, and GeeTest frames. Those documents score their own environment for tampering, so any injected stylesheet, script, or global there makes the challenge fail ("Verification failed"). They are excluded both by `@exclude` metadata and by a guard that exits before the script touches anything. Cloudflare "Just a moment…" interstitials, which are served on the site's own URL, are detected by their content and DNA Shield shuts itself down there.
+2. **JavaScript:** their animations are never fast-forwarded — neither the `animationstart` path nor any sweep touches an animation owned by a captcha element (their challenge logic reads animation timing as a bot signal).
+3. **CSS:** while a captcha widget is on screen (including a Turnstile widget hidden in a closed shadow root, detected through its loader script), the entire accelerator stylesheet is swapped for a captcha-safe subset (instant scrolling only) and restored the moment it's gone — because slider puzzles are commonly driven by negative `animation-delay` techniques that a universal clamp would destroy.
 
 This is on by default (`CONFIG.protectCaptchas`).
 
@@ -78,8 +79,8 @@ npm install
 npm test
 ```
 
-The Jest + jsdom suite evaluates the real userscript and covers the CSS clamp, the kill switch, style recovery, the animation finish queue, speculation rules injection, and every prefetch edge case (logout, downloads, heavy media, dedupe, Save-Data).
+The Jest + jsdom suite evaluates the real userscript and covers the CSS clamp, the kill switch, style recovery, the animation finish queue, speculation rules injection, the captcha exclusion zone (challenge frames, Cloudflare interstitials, shadow-rooted widgets), and every prefetch edge case (logout, downloads, heavy media, dedupe, Save-Data).
 
 ## Versioning
 
-Simple major.minor progression: `1.0` → `1.9`, then `2.0` → `2.9`, then `3.0`, and so on. The version lives only in the Tampermonkey metadata.
+Simple major.minor progression: `1.0` → `1.9`, then `2.0` → `2.9`, then `3.0`, and so on. The version lives in the Tampermonkey metadata of `DNA-Shield.user.js` and `DNA-Shield.meta.js`; `package.json` mirrors it as `major.minor.0`.

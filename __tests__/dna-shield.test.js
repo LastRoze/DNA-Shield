@@ -251,6 +251,62 @@ describe("DNA Shield userscript", () => {
     );
   });
 
+  test("suspends the CSS clamp as soon as a Turnstile loader script appears", async () => {
+    runScript();
+
+    const style = document.getElementById("__DNA_SHIELD__");
+    const loader = document.createElement("script");
+    loader.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+    document.head.appendChild(loader);
+
+    await wait(600);
+    expect(style.textContent).not.toEqual(
+      expect.stringContaining("transition-duration")
+    );
+  });
+
+  test("never accelerates animations inside a captcha host's shadow tree", async () => {
+    runScript();
+
+    const host = document.createElement("div");
+    host.className = "cf-turnstile";
+    document.body.appendChild(host);
+    const shadow = host.attachShadow({ mode: "open" });
+    const inner = document.createElement("div");
+    shadow.appendChild(inner);
+
+    const shadowAnim = makeAnim();
+    shadowAnim.effect.target = inner;
+    document.getAnimations = () => [shadowAnim];
+    window.DNAShield.sweep();
+    delete document.getAnimations;
+
+    await wait();
+    expect(shadowAnim.finish).not.toHaveBeenCalled();
+  });
+
+  test("shuts down completely on a Cloudflare interstitial challenge", async () => {
+    HTMLScriptElement.supports = (type) => type === "speculationrules";
+    window._cf_chl_opt = { cType: "managed" };
+    try {
+      runScript();
+
+      expect(window.DNAShield.enabled).toBe(false);
+      expect(document.getElementById("__DNA_SHIELD__")).toBeNull();
+      expect(document.getElementById("__DNA_SHIELD_RULES__")).toBeNull();
+
+      const anim = makeAnim({ animationName: "spin-once" });
+      const el = document.createElement("div");
+      el.getAnimations = () => [anim];
+      document.body.appendChild(el);
+      fire(el, "animationstart", { animationName: "spin-once" });
+      await wait();
+      expect(anim.finish).not.toHaveBeenCalled();
+    } finally {
+      delete window._cf_chl_opt;
+    }
+  });
+
   test("ignores transitions so state machines stay in control", async () => {
     runScript();
 

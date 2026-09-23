@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DNA Shield
 // @namespace    DNA Shield
-// @version      1.4
+// @version      1.5
 // @author       Last Roze
 // @description  Dominion With Domination
 // @copyright    ©2020-2026 Yoga Budiman
@@ -15,6 +15,16 @@
 // @downloadURL  https://github.com/LastRoze/DNA-Shield/raw/master/DNA-Shield.user.js
 // @supportURL   https://lastroze.github.io/
 // @match        *://*/*
+// @exclude      *://challenges.cloudflare.com/*
+// @exclude      *://*/cdn-cgi/challenge-platform/*
+// @exclude      *://hcaptcha.com/*
+// @exclude      *://*.hcaptcha.com/*
+// @exclude      *://www.google.com/recaptcha/*
+// @exclude      *://www.recaptcha.net/recaptcha/*
+// @exclude      *://recaptcha.net/recaptcha/*
+// @exclude      *://*.arkoselabs.com/*
+// @exclude      *://*.funcaptcha.com/*
+// @exclude      *://*.geetest.com/*
 // @run-at       document-start
 // @grant        none
 // ==/UserScript==
@@ -22,6 +32,64 @@
 (function DNA_SHIELD() {
 
     'use strict';
+
+    /* ==========================================================
+     * VERIFICATION FRAMES: ZERO FOOTPRINT
+     * ==========================================================
+     * The catch-all @match also matches the cross-origin iframes that
+     * CAPTCHA providers render their challenge in (Cloudflare
+     * Turnstile, hCaptcha, reCAPTCHA, ...). Those documents score
+     * their own environment for tampering, so any stylesheet,
+     * finished animation, injected script or extra global there
+     * fails the challenge ("Verification failed"). The @exclude
+     * metadata covers this too; this guard is the backstop for
+     * managers that ignore @exclude and must run before anything
+     * else touches the page.
+     * ========================================================== */
+
+    var CHALLENGE_HOSTS = [
+        'challenges.cloudflare.com',
+        'hcaptcha.com',
+        'recaptcha.net',
+        'arkoselabs.com',
+        'funcaptcha.com',
+        'geetest.com'
+    ];
+
+    /**
+     * True when this document is a CAPTCHA provider's challenge
+     * frame or page that DNA Shield must never run in.
+     *
+     * @param {Location} loc Location to classify.
+     * @returns {boolean} True for verification documents.
+     */
+    function isChallengeDocument(loc) {
+        try {
+            var h = String(loc.hostname).toLowerCase();
+            var p = String(loc.pathname);
+
+            if (p.indexOf('/cdn-cgi/challenge-platform/') === 0) {
+                return true;
+            }
+            if (
+                (h === 'www.google.com' || h === 'google.com') &&
+                p.indexOf('/recaptcha/') === 0
+            ) {
+                return true;
+            }
+            for (var i = 0; i < CHALLENGE_HOSTS.length; i++) {
+                var d = CHALLENGE_HOSTS[i];
+                if (h === d || h.slice(-(d.length + 1)) === '.' + d) {
+                    return true;
+                }
+            }
+        } catch (_) {}
+        return false;
+    }
+
+    if (isChallengeDocument(location)) {
+        return;
+    }
 
     /* ==========================================================
      * CONFIGURATION
@@ -133,23 +201,56 @@
         '[class*="puzzle" i]', '[class*="yidun" i]',
         '[class*="slider-verify" i]', '[class*="verify-slide" i]',
         '[class*="captcha-verify" i]', '[class*="verify-captcha" i]',
-        '[class*="slide-verify" i]', '[class*="verify-slider" i]'
+        '[class*="slide-verify" i]', '[class*="verify-slider" i]',
+        /*
+         * Turnstile renders its iframe inside a closed shadow root,
+         * invisible to querySelector, and framework wrappers often
+         * drop the cf-turnstile class. The widget container ids and
+         * the provider loader scripts are the reliable signals.
+         */
+        '[id^="cf-chl-widget"]', '[name="cf-turnstile-response"]',
+        'script[src*="challenges.cloudflare.com"]',
+        'script[src*="/cdn-cgi/challenge-platform/"]',
+        'script[src*="hcaptcha.com"]',
+        'script[src*="/recaptcha/"]'
     ].join(',');
 
     /**
      * True when an element sits inside a CAPTCHA widget that DNA
-     * Shield must leave alone.
+     * Shield must leave alone. Shadow boundaries are crossed so a
+     * widget's own shadow tree counts as inside its host.
      *
      * @param {Element} el Element to check.
      * @returns {boolean} True inside a captcha.
      */
     function inCaptcha(el) {
-        if (!CONFIG.protectCaptchas || !el) {
+        if (!CONFIG.protectCaptchas) {
             return false;
         }
         try {
-            return typeof el.closest === 'function' &&
-                !!el.closest(CAPTCHA_SELECTOR);
+            while (el && typeof el.closest === 'function') {
+                if (el.closest(CAPTCHA_SELECTOR)) {
+                    return true;
+                }
+                var root = typeof el.getRootNode === 'function'
+                    ? el.getRootNode()
+                    : null;
+                el = root && root.host;
+            }
+        } catch (_) {}
+        return false;
+    }
+
+    /**
+     * True on a Cloudflare interstitial challenge page ("Just a
+     * moment..."), which is served on the site's own URL, so only
+     * its content identifies it.
+     *
+     * @returns {boolean} True on an interstitial challenge.
+     */
+    function isInterstitialChallenge() {
+        try {
+            return !!window._cf_chl_opt;
         } catch (_) {
             return false;
         }
@@ -358,8 +459,10 @@
                 styleEl = document.getElementById(STYLE_ID) ||
                     document.createElement('style');
                 styleEl.id = STYLE_ID;
-                styleEl.textContent = css;
             }
+            /* Always current: captcha state may have changed while
+               the page had the element detached. */
+            styleEl.textContent = css;
 
             var parent = document.head || document.documentElement;
             if (parent && !styleEl.isConnected) {
@@ -449,15 +552,39 @@
         }
         lastCaptchaCheck = now;
 
+        if (isInterstitialChallenge()) {
+            leaveChallengePage();
+            return;
+        }
+
         var present = false;
         try {
             present = !!document.querySelector(CAPTCHA_SELECTOR);
         } catch (_) {}
 
-        if (present !== cssSuspended && isInstalled()) {
+        /* Track the state even while detached: install() builds
+           from cssSuspended when it reattaches. */
+        if (present !== cssSuspended) {
             cssSuspended = present;
-            refreshCSS();
+            if (isInstalled()) {
+                refreshCSS();
+            }
         }
+    }
+
+    /**
+     * Shut DNA Shield down for the rest of this page's life. Used on
+     * Cloudflare interstitials, where the whole page is the
+     * challenge and nothing may be accelerated or injected.
+     *
+     * @returns {void}
+     */
+    function leaveChallengePage() {
+        ACTIVE = false;
+        stop();
+        try {
+            window.DNAShield.enabled = false;
+        } catch (_) {}
     }
 
     /**
@@ -1361,13 +1488,23 @@
      * ========================================================== */
 
     /**
-     * Remove the stylesheet hint script and every listener, and
-     * disconnect observers. Used by the public API.
+     * Remove the stylesheet, the speculation rules script and every
+     * listener, and cancel observers and pending timers/frames.
+     * Used by the public API and on challenge pages.
      *
      * @returns {void}
      */
     function stop() {
         cancelPending();
+
+        if (captchaTimer) {
+            clearTimeout(captchaTimer);
+            captchaTimer = 0;
+        }
+        if (finishFrame && typeof cancelAnimationFrame === 'function') {
+            cancelAnimationFrame(finishFrame);
+        }
+        finishFrame = 0;
 
         try {
             if (styleObserver) {
@@ -1419,8 +1556,8 @@
      * @returns {void}
      */
     function onReady() {
-        install();
         checkCaptcha();
+        install();
         injectSpeculationRules();
         startObserver();
         sweep();
@@ -1492,10 +1629,10 @@
      * PUBLIC API
      * ========================================================== */
 
-        try {
-            window.DNAShield = {
-                enabled: ACTIVE,
-                mode: 'waapi-finish + transition-clamp + prerender/prefetch',
+    try {
+        window.DNAShield = {
+            enabled: ACTIVE,
+            mode: 'waapi-finish + transition-clamp + prerender/prefetch',
 
             /* What DNA Shield does NOT touch. */
             patchesNativeAPIs: false,
