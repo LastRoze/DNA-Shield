@@ -235,8 +235,8 @@ describe("DNA Shield userscript", () => {
     dialog.className = "slider-captcha";
     document.body.appendChild(dialog);
 
-    /* MutationObserver fires, throttled check re-runs within ~400ms. */
-    await wait(600);
+    /* Incremental detection: the next MutationObserver batch. */
+    await wait();
     expect(style.textContent).not.toEqual(
       expect.stringContaining("transition-duration")
     );
@@ -245,21 +245,76 @@ describe("DNA Shield userscript", () => {
     );
 
     dialog.remove();
-    await wait(600);
+    await wait();
     expect(style.textContent).toEqual(
       expect.stringContaining("transition-duration:0.01s !important")
     );
   });
 
-  test("suspends the CSS clamp as soon as a Turnstile loader script appears", async () => {
+  test("keeps accelerating when only captcha scripts or badges are present", async () => {
     runScript();
 
     const style = document.getElementById("__DNA_SHIELD__");
-    const loader = document.createElement("script");
-    loader.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
-    document.head.appendChild(loader);
 
-    await wait(600);
+    /* Loader and bot-detection scripts ship on every page of many sites. */
+    for (const src of [
+      "https://challenges.cloudflare.com/turnstile/v0/api.js",
+      "/cdn-cgi/challenge-platform/scripts/jsd/main.js",
+      "https://www.google.com/recaptcha/api.js?render=key"
+    ]) {
+      const script = document.createElement("script");
+      script.src = src;
+      document.head.appendChild(script);
+    }
+    const config = document.createElement("script");
+    config.id = "captcha-config";
+    document.head.appendChild(config);
+
+    /* reCAPTCHA v3 / invisible: badge plus hidden challenge frame. */
+    const badge = document.createElement("div");
+    badge.className = "grecaptcha-badge";
+    badge.innerHTML =
+      '<iframe src="https://www.google.com/recaptcha/api2/anchor?size=invisible"></iframe>' +
+      '<textarea id="g-recaptcha-response" class="g-recaptcha-response"></textarea>';
+    document.body.appendChild(badge);
+    const bframe = document.createElement("iframe");
+    bframe.src = "https://www.google.com/recaptcha/api2/bframe?k=key";
+    document.body.appendChild(bframe);
+
+    await wait();
+    expect(style.textContent).toEqual(
+      expect.stringContaining("transition-duration:0.01s !important")
+    );
+  });
+
+  test("suspends the CSS clamp for a rendered Turnstile widget without its class", async () => {
+    runScript();
+
+    const style = document.getElementById("__DNA_SHIELD__");
+    const container = document.createElement("div");
+    container.className = "w-full";
+    container.innerHTML =
+      '<input type="hidden" name="cf-turnstile-response" id="cf-chl-widget-abc_response">';
+    document.body.appendChild(container);
+
+    await wait();
+    expect(style.textContent).not.toEqual(
+      expect.stringContaining("transition-duration")
+    );
+
+    container.remove();
+    await wait();
+    expect(style.textContent).toEqual(
+      expect.stringContaining("transition-duration:0.01s !important")
+    );
+  });
+
+  test("detects a captcha already in the page once the page is idle", async () => {
+    document.body.innerHTML = '<div id="NEW_CAPTCHA"></div>';
+    runScript();
+    await wait();
+
+    const style = document.getElementById("__DNA_SHIELD__");
     expect(style.textContent).not.toEqual(
       expect.stringContaining("transition-duration")
     );
@@ -307,6 +362,21 @@ describe("DNA Shield userscript", () => {
     }
   });
 
+  test("keeps running on normal pages of Cloudflare-protected sites", () => {
+    /* Bot detection sets _cf_chl_opt on ordinary pages, without cType. */
+    window._cf_chl_opt = { fDDOx7: "x", nFSze1: "y" };
+    try {
+      runScript();
+
+      expect(window.DNAShield.enabled).toBe(true);
+      expect(document.getElementById("__DNA_SHIELD__").textContent).toEqual(
+        expect.stringContaining("transition-duration:0.01s !important")
+      );
+    } finally {
+      delete window._cf_chl_opt;
+    }
+  });
+
   test("ignores transitions so state machines stay in control", async () => {
     runScript();
 
@@ -334,6 +404,8 @@ describe("DNA Shield userscript", () => {
     const parsed = JSON.parse(rules[0].textContent);
     expect(parsed.prerender[0].source).toBe("document");
     expect(parsed.prerender[0].eagerness).toBe("moderate");
+    /* Cheap HTML prefetch starts on a 10 ms hover, before prerender. */
+    expect(parsed.prefetch[0].eagerness).toBe("eager");
     expect(parsed.prefetch[0].where.and[1].not.selector_matches).toEqual(
       expect.stringContaining("logout")
     );

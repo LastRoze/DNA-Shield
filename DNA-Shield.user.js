@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DNA Shield
 // @namespace    DNA Shield
-// @version      1.5
+// @version      1.6
 // @author       Last Roze
 // @description  Dominion With Domination
 // @copyright    ©2020-2026 Yoga Budiman
@@ -142,14 +142,19 @@
         /*
          * Navigation acceleration.
          *
-         * On Chromium, Speculation Rules prerender/prefetch links on
-         * hover (declarative, zero JS cost). Everywhere else, DNA
-         * Shield prefetches same-origin links itself after a short
-         * hover-intent delay, and on pointerdown with no delay.
-         * Cross-origin links only get a preconnect.
+         * On Chromium, Speculation Rules warm links on hover
+         * (declarative, zero JS cost): the cheap HTML prefetch starts
+         * after a 10 ms hover ("eager"), the expensive full
+         * prerender after 200 ms or on pointerdown ("moderate"), and
+         * reuses the prefetched response. Chrome caps both at two
+         * pages at a time. Everywhere else, DNA Shield prefetches
+         * same-origin links itself after a short hover-intent delay,
+         * and on pointerdown with no delay. Cross-origin links only
+         * get a preconnect.
          */
         speculationRules: true,
-        speculationEagerness: 'moderate',
+        prefetchEagerness: 'eager',
+        prerenderEagerness: 'moderate',
         prefetch: true,
         prefetchHoverDelayMs: 65,
         maxHintsPerPage: 120,
@@ -205,15 +210,20 @@
         /*
          * Turnstile renders its iframe inside a closed shadow root,
          * invisible to querySelector, and framework wrappers often
-         * drop the cf-turnstile class. The widget container ids and
-         * the provider loader scripts are the reliable signals.
+         * drop the cf-turnstile class. A rendered widget still adds
+         * its light-DOM response field, so that is the signal.
+         * Loader scripts are deliberately NOT signals: sites load
+         * them (and Cloudflare's bot-detection scripts) on every
+         * page, which switched acceleration off site-wide.
          */
-        '[id^="cf-chl-widget"]', '[name="cf-turnstile-response"]',
-        'script[src*="challenges.cloudflare.com"]',
-        'script[src*="/cdn-cgi/challenge-platform/"]',
-        'script[src*="hcaptcha.com"]',
-        'script[src*="/recaptcha/"]'
+        '[id^="cf-chl-widget"]', '[name="cf-turnstile-response"]'
     ].join(',');
+
+    /*
+     * Elements that never render a challenge: a script or config
+     * node with "captcha" in its id is not a widget on screen.
+     */
+    var NON_RENDERED_TAGS = /^(SCRIPT|STYLE|LINK|META|TEMPLATE|NOSCRIPT)$/;
 
     /**
      * True when an element sits inside a CAPTCHA widget that DNA
@@ -250,7 +260,13 @@
      */
     function isInterstitialChallenge() {
         try {
-            return !!window._cf_chl_opt;
+            /*
+             * Ordinary pages on Cloudflare-protected sites also carry
+             * a _cf_chl_opt object (bot detection), but only the
+             * challenge page declares a challenge type.
+             */
+            var opt = window._cf_chl_opt;
+            return !!opt && typeof opt.cType === 'string';
         } catch (_) {
             return false;
         }
@@ -495,16 +511,21 @@
     /* ==========================================================
      * CAPTCHA SUSPENSION
      * ==========================================================
-     * While a captcha widget is in the DOM the whole accelerator
-     * stylesheet is swapped for the captcha-safe subset, because a
-     * universal !important clamp cannot be selectively undone in
-     * CSS. The swap is throttled so busy DOMs do not pay for it.
+     * While a rendered captcha widget is on the page the whole
+     * accelerator stylesheet is swapped for the captcha-safe
+     * subset, because a universal !important clamp cannot be
+     * selectively undone in CSS.
+     *
+     * Detection is incremental: the page is scanned once when it is
+     * ready, then only added subtrees are checked. Re-scanning the
+     * whole document on every mutation cost 5-11 ms of main thread
+     * per scan on ordinary pages (measured on YouTube and GitHub).
      * ========================================================== */
 
     var cssSuspended = false;
-    var lastCaptchaCheck = 0;
-    var captchaCheckInterval = 250;
-    var captchaTimer = 0;
+    var captchaEls = [];
+    var scanHandle = 0;
+    var scanIdle = false;
 
     /**
      * Rebuild the live stylesheet for the current captcha state.
@@ -529,38 +550,79 @@
     }
 
     /**
-     * Detect captcha widgets (throttled, with a trailing re-check so
-     * one is never missed) and swap the stylesheet in or out.
+     * True when a selector match is a captcha the visitor actually
+     * faces. The reCAPTCHA v3 / invisible badge and its hidden
+     * challenge frame sit on every page of many sites without ever
+     * showing a challenge, so they do not count.
      *
+     * @param {Element} el Element matching CAPTCHA_SELECTOR.
+     * @returns {boolean} True for a live widget.
+     */
+    function isLiveCaptcha(el) {
+        try {
+            if (NON_RENDERED_TAGS.test(el.tagName)) {
+                return false;
+            }
+            if (el.closest('.grecaptcha-badge')) {
+                return false;
+            }
+            if (
+                el.tagName === 'IFRAME' &&
+                String(el.getAttribute('src') || '').indexOf('/bframe') !== -1
+            ) {
+                return false;
+            }
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    /**
+     * Record every live captcha in a subtree (root included).
+     *
+     * @param {Node} root Subtree to inspect.
      * @returns {void}
      */
-    function checkCaptcha() {
-        if (!ACTIVE || !CONFIG.protectCaptchas) {
-            return;
-        }
-
-        var now = Date.now();
-        var elapsed = now - lastCaptchaCheck;
-        if (elapsed < captchaCheckInterval) {
-            if (!captchaTimer) {
-                captchaTimer = setTimeout(function () {
-                    captchaTimer = 0;
-                    checkCaptcha();
-                }, captchaCheckInterval - elapsed);
-            }
-            return;
-        }
-        lastCaptchaCheck = now;
-
-        if (isInterstitialChallenge()) {
-            leaveChallengePage();
-            return;
-        }
-
-        var present = false;
+    function trackCaptchas(root) {
         try {
-            present = !!document.querySelector(CAPTCHA_SELECTOR);
+            if (!root || root.nodeType !== 1) {
+                return;
+            }
+            if (root.matches(CAPTCHA_SELECTOR) && isLiveCaptcha(root)) {
+                captchaEls.push(root);
+            }
+            if (!root.firstElementChild) {
+                return;
+            }
+            var found = root.querySelectorAll(CAPTCHA_SELECTOR);
+            for (var i = 0; i < found.length; i++) {
+                if (isLiveCaptcha(found[i])) {
+                    captchaEls.push(found[i]);
+                }
+            }
         } catch (_) {}
+    }
+
+    /**
+     * Forget captchas that left the document, then swap the
+     * stylesheet if the captcha state changed.
+     *
+     * @param {boolean} prune True when nodes were removed.
+     * @returns {void}
+     */
+    function updateSuspension(prune) {
+        if (prune && captchaEls.length) {
+            var kept = [];
+            for (var i = 0; i < captchaEls.length; i++) {
+                if (captchaEls[i].isConnected && kept.indexOf(captchaEls[i]) === -1) {
+                    kept.push(captchaEls[i]);
+                }
+            }
+            captchaEls = kept;
+        }
+
+        var present = captchaEls.length > 0;
 
         /* Track the state even while detached: install() builds
            from cssSuspended when it reattaches. */
@@ -570,6 +632,74 @@
                 refreshCSS();
             }
         }
+    }
+
+    /**
+     * Initial captcha scan when the document is ready. Also shuts
+     * DNA Shield down on a Cloudflare interstitial.
+     *
+     * @returns {void}
+     */
+    function scanCaptchas() {
+        if (!ACTIVE || !CONFIG.protectCaptchas) {
+            return;
+        }
+        if (isInterstitialChallenge()) {
+            leaveChallengePage();
+            return;
+        }
+        if (scanHandle) {
+            return;
+        }
+
+        /*
+         * The full scan costs ~12 ms on a 2,500-element page
+         * (measured on GitHub), so it waits for idle time instead of
+         * competing with the page's own startup. The observer is
+         * already tracking additions, and a challenge still needs a
+         * human to start interacting with it.
+         */
+        if (typeof requestIdleCallback === 'function') {
+            scanHandle = requestIdleCallback(fullCaptchaScan, { timeout: 300 });
+            scanIdle = true;
+        } else {
+            scanHandle = setTimeout(fullCaptchaScan, 0);
+            scanIdle = false;
+        }
+    }
+
+    /**
+     * Scan the whole document for live captchas once.
+     *
+     * @returns {void}
+     */
+    function fullCaptchaScan() {
+        scanHandle = 0;
+        if (!ACTIVE) {
+            return;
+        }
+        captchaEls = [];
+        trackCaptchas(document.documentElement);
+        updateSuspension(false);
+    }
+
+    /**
+     * Cancel a scheduled full captcha scan.
+     *
+     * @returns {void}
+     */
+    function cancelCaptchaScan() {
+        if (!scanHandle) {
+            return;
+        }
+        try {
+            if (scanIdle) {
+                cancelIdleCallback(scanHandle);
+            } else {
+                clearTimeout(scanHandle);
+            }
+        } catch (_) {}
+        scanHandle = 0;
     }
 
     /**
@@ -588,6 +718,34 @@
     }
 
     /**
+     * MutationObserver callback: reinstall a removed stylesheet and
+     * feed only the added/removed nodes to captcha tracking.
+     *
+     * @param {MutationRecord[]} records Batched DOM changes.
+     * @returns {void}
+     */
+    function onMutations(records) {
+        if (!isInstalled()) {
+            install();
+        }
+        if (!CONFIG.protectCaptchas) {
+            return;
+        }
+
+        var removed = false;
+        for (var i = 0; i < records.length; i++) {
+            var added = records[i].addedNodes;
+            for (var j = 0; j < added.length; j++) {
+                trackCaptchas(added[j]);
+            }
+            if (records[i].removedNodes.length) {
+                removed = true;
+            }
+        }
+        updateSuspension(removed);
+    }
+
+    /**
      * Observe DOM changes so a page removing the stylesheet gets it
      * reinstalled, and so captcha widgets can toggle the stylesheet
      * between full and captcha-safe modes. Subtree childList is
@@ -602,12 +760,7 @@
         }
 
         try {
-            styleObserver = new MutationObserver(function () {
-                if (!isInstalled()) {
-                    install();
-                }
-                checkCaptcha();
-            });
+            styleObserver = new MutationObserver(onMutations);
 
             if (document.documentElement) {
                 styleObserver.observe(document.documentElement, {
@@ -1044,7 +1197,7 @@
                             not: { selector_matches: EXCLUDE }
                         }]
                     },
-                    eagerness: CONFIG.speculationEagerness
+                    eagerness: CONFIG.prefetchEagerness
                 }],
                 prerender: [{
                     source: 'document',
@@ -1055,7 +1208,7 @@
                             not: { selector_matches: EXCLUDE }
                         }]
                     },
-                    eagerness: CONFIG.speculationEagerness
+                    eagerness: CONFIG.prerenderEagerness
                 }]
             };
 
@@ -1496,11 +1649,8 @@
      */
     function stop() {
         cancelPending();
+        cancelCaptchaScan();
 
-        if (captchaTimer) {
-            clearTimeout(captchaTimer);
-            captchaTimer = 0;
-        }
         if (finishFrame && typeof cancelAnimationFrame === 'function') {
             cancelAnimationFrame(finishFrame);
         }
@@ -1550,13 +1700,13 @@
     }
 
     /**
-     * DOMContentLoaded work: late installs, captcha detection and the
+     * DOMContentLoaded work: captcha scan, late installs and the
      * first sweep.
      *
      * @returns {void}
      */
     function onReady() {
-        checkCaptcha();
+        scanCaptchas();
         install();
         injectSpeculationRules();
         startObserver();
