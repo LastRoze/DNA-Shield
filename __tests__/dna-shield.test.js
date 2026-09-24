@@ -7,7 +7,6 @@ const scriptContent = fs.readFileSync(scriptPath, "utf8");
 
 function runScript() {
   // The userscript is an IIFE evaluated against the jsdom globals.
-  // eslint-disable-next-line no-eval
   eval(scriptContent);
 }
 
@@ -34,6 +33,8 @@ function makeAnim(options = {}) {
     playState: options.playState || "running",
     finish: jest.fn(),
     effect: {
+      target: options.target || null,
+      pseudoElement: options.pseudoElement || null,
       getComputedTiming: () => timing
     }
   };
@@ -93,19 +94,17 @@ describe("DNA Shield userscript", () => {
     expect(window.DNAShield.patchesNetwork).toBe(false);
   });
 
-  test("clamps transitions and delays to 0.01s/0s without freezing animations", () => {
+  test("never clamps transition durations in CSS, only zeroes animation delays", () => {
     runScript();
 
     const style = document.getElementById("__DNA_SHIELD__");
     expect(style).not.toBeNull();
-    expect(style.textContent).toEqual(
-      expect.stringContaining("transition-duration:0.01s !important")
-    );
+
+    /* A transition-duration clamp turns the default `all 0s` into a
+       real transition on every element; it must never ship. */
+    expect(style.textContent).not.toEqual(expect.stringContaining("transition"));
     expect(style.textContent).toEqual(
       expect.stringContaining("animation-delay:0s !important")
-    );
-    expect(style.textContent).toEqual(
-      expect.stringContaining("transition-delay:0s !important")
     );
     expect(style.textContent).toEqual(
       expect.stringContaining("scroll-behavior:auto !important")
@@ -186,7 +185,7 @@ describe("DNA Shield userscript", () => {
 
     const puzzle = document.createElement("div");
     dialog.appendChild(puzzle);
-    const captchaAnim = makeAnim({ animationName: "slide-piece" });
+    const captchaAnim = makeAnim({ animationName: "slide-piece", target: puzzle });
     puzzle.getAnimations = () => [captchaAnim];
 
     /* Event path: animationstart inside the captcha is ignored. */
@@ -228,7 +227,7 @@ describe("DNA Shield userscript", () => {
 
     const style = document.getElementById("__DNA_SHIELD__");
     expect(style.textContent).toEqual(
-      expect.stringContaining("transition-duration:0.01s !important")
+      expect.stringContaining("animation-delay:0s !important")
     );
 
     const dialog = document.createElement("div");
@@ -238,7 +237,7 @@ describe("DNA Shield userscript", () => {
     /* Incremental detection: the next MutationObserver batch. */
     await wait();
     expect(style.textContent).not.toEqual(
-      expect.stringContaining("transition-duration")
+      expect.stringContaining("animation-delay")
     );
     expect(style.textContent).toEqual(
       expect.stringContaining("scroll-behavior:auto !important")
@@ -247,7 +246,7 @@ describe("DNA Shield userscript", () => {
     dialog.remove();
     await wait();
     expect(style.textContent).toEqual(
-      expect.stringContaining("transition-duration:0.01s !important")
+      expect.stringContaining("animation-delay:0s !important")
     );
   });
 
@@ -283,7 +282,7 @@ describe("DNA Shield userscript", () => {
 
     await wait();
     expect(style.textContent).toEqual(
-      expect.stringContaining("transition-duration:0.01s !important")
+      expect.stringContaining("animation-delay:0s !important")
     );
   });
 
@@ -299,13 +298,13 @@ describe("DNA Shield userscript", () => {
 
     await wait();
     expect(style.textContent).not.toEqual(
-      expect.stringContaining("transition-duration")
+      expect.stringContaining("animation-delay")
     );
 
     container.remove();
     await wait();
     expect(style.textContent).toEqual(
-      expect.stringContaining("transition-duration:0.01s !important")
+      expect.stringContaining("animation-delay:0s !important")
     );
   });
 
@@ -316,7 +315,7 @@ describe("DNA Shield userscript", () => {
 
     const style = document.getElementById("__DNA_SHIELD__");
     expect(style.textContent).not.toEqual(
-      expect.stringContaining("transition-duration")
+      expect.stringContaining("animation-delay")
     );
   });
 
@@ -370,26 +369,100 @@ describe("DNA Shield userscript", () => {
 
       expect(window.DNAShield.enabled).toBe(true);
       expect(document.getElementById("__DNA_SHIELD__").textContent).toEqual(
-        expect.stringContaining("transition-duration:0.01s !important")
+        expect.stringContaining("animation-delay:0s !important")
       );
     } finally {
       delete window._cf_chl_opt;
     }
   });
 
-  test("ignores transitions so state machines stay in control", async () => {
+  test("finishes an authored transition when it starts, matching its property only", async () => {
     runScript();
 
     const el = document.createElement("div");
     document.body.appendChild(el);
-    const transition = makeAnim({ transitionProperty: "opacity" });
-    el.getAnimations = () => [transition];
+    const opacity = makeAnim({ transitionProperty: "opacity", target: el });
+    const transform = makeAnim({ transitionProperty: "transform", target: el });
+    const keyframes = makeAnim({ animationName: "pulse", target: el });
+    el.getAnimations = () => [opacity, transform, keyframes];
 
-    fire(el, "animationstart", { animationName: "" });
-    window.DNAShield.sweep();
+    fire(el, "transitionrun", { propertyName: "opacity" });
     await wait();
 
-    expect(transition.finish).not.toHaveBeenCalled();
+    expect(opacity.finish).toHaveBeenCalledTimes(1);
+    expect(transform.finish).not.toHaveBeenCalled();
+    expect(keyframes.finish).not.toHaveBeenCalled();
+  });
+
+  test("never finishes transitions inside a captcha", async () => {
+    runScript();
+
+    const captcha = document.createElement("div");
+    captcha.className = "slide-verify";
+    const knob = document.createElement("div");
+    captcha.appendChild(knob);
+    document.body.appendChild(captcha);
+    const move = makeAnim({ transitionProperty: "left", target: knob });
+    knob.getAnimations = () => [move];
+
+    fire(knob, "transitionrun", { propertyName: "left" });
+    await wait();
+
+    expect(move.finish).not.toHaveBeenCalled();
+  });
+
+  test("accelerates pseudo-element animations the element list omits", async () => {
+    runScript();
+
+    const el = document.createElement("div");
+    document.body.appendChild(el);
+    const own = makeAnim({ animationName: "fade", target: el });
+    const before = makeAnim({
+      animationName: "fade", target: el, pseudoElement: "::before"
+    });
+    el.getAnimations = (opts) =>
+      opts && opts.subtree ? [own, before] : [own];
+
+    fire(el, "animationstart", { animationName: "fade", pseudoElement: "::before" });
+    await wait();
+
+    expect(before.finish).toHaveBeenCalledTimes(1);
+    expect(own.finish).not.toHaveBeenCalled();
+  });
+
+  test("finishes a burst of transitions in one frame", async () => {
+    runScript();
+
+    const els = [];
+    for (let i = 0; i < 200; i++) {
+      const el = document.createElement("div");
+      const t = makeAnim({ transitionProperty: "color", target: el });
+      el.getAnimations = () => [t];
+      el._t = t;
+      document.body.appendChild(el);
+      els.push(el);
+    }
+    els.forEach((el) => fire(el, "transitionrun", { propertyName: "color" }));
+    await wait(20);
+
+    expect(els.every((el) => el._t.finish.mock.calls.length === 1)).toBe(true);
+  });
+
+  test("leaves a paused animation for later instead of forgetting it", async () => {
+    runScript();
+
+    const anim = makeAnim({ playState: "paused" });
+    document.getAnimations = () => [anim];
+    window.DNAShield.sweep();
+    await wait();
+    expect(anim.finish).not.toHaveBeenCalled();
+
+    anim.playState = "running";
+    window.DNAShield.sweep();
+    await wait();
+    expect(anim.finish).toHaveBeenCalledTimes(1);
+
+    delete document.getAnimations;
   });
 
   test("injects Chromium speculation rules exactly once", () => {
@@ -406,9 +479,12 @@ describe("DNA Shield userscript", () => {
     expect(parsed.prerender[0].eagerness).toBe("moderate");
     /* Cheap HTML prefetch starts on a 10 ms hover, before prerender. */
     expect(parsed.prefetch[0].eagerness).toBe("eager");
-    expect(parsed.prefetch[0].where.and[1].not.selector_matches).toEqual(
-      expect.stringContaining("logout")
-    );
+    const excluded = parsed.prefetch[0].where.and[1].not.selector_matches;
+    expect(excluded).toEqual(expect.stringContaining('[href*="logout" i]'));
+    expect(excluded).toEqual(expect.stringContaining('[href*="sign-out" i]'));
+    expect(excluded).toEqual(expect.stringContaining('[href*="unsubscribe" i]'));
+    expect(excluded).toEqual(expect.stringContaining('[href$=".zip" i]'));
+    expect(parsed.prerender[0].where.and[1].not.selector_matches).toBe(excluded);
 
     window.DNAShield.stop();
     runScript();

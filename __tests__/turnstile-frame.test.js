@@ -13,7 +13,6 @@ const scriptContent = fs.readFileSync(
 test("leaves zero footprint inside a verification document (challenges.cloudflare.com)", () => {
   HTMLScriptElement.supports = (type) => type === "speculationrules";
 
-  // eslint-disable-next-line no-eval
   eval(scriptContent);
 
   expect(window.DNAShield).toBeUndefined();

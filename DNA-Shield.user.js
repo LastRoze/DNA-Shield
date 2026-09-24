@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DNA Shield
 // @namespace    DNA Shield
-// @version      1.6
+// @version      1.7
 // @author       Last Roze
 // @description  Dominion With Domination
 // @copyright    ©2020-2026 Yoga Budiman
@@ -98,16 +98,25 @@
     var CONFIG = {
 
         /*
-         * Maximum CSS transition duration in ms. Transitions are
-         * clamped to at most this long. 10 ms is far below the
-         * 0.1 s "near instant" bar while still letting
-         * transitionrun/start/end events fire normally, so
-         * framework state machines keep working.
+         * Finish every transition the site authored in the same
+         * frame it starts (via the transitionrun event). Unlike a
+         * CSS duration clamp, this never touches elements that have
+         * no transition of their own: `*{transition-duration:...}`
+         * turns the default `all 0s` into a real transition on every
+         * element, so script-driven style changes (drags, sliders,
+         * maps, sticky headers) lag a frame, layout reads return
+         * stale values, and stray transition events fire.
+         */
+        accelerateTransitions: true,
+
+        /* Zero out animation delays so entrance animations start now. */
+        zeroDelays: true,
+
+        /*
+         * Duration used by clampAnimations below, in ms (1-1000).
+         * Values outside that range fall back to 10 or 1000.
          */
         durationMs: 10,
-
-        /* Zero out all animation and transition delays. */
-        zeroDelays: true,
 
         /*
          * CSS animations are NOT clamped by default - clamping
@@ -118,7 +127,7 @@
          * and fires the correct events. Set clampAnimations to true
          * to additionally force animation-duration in CSS; ambient
          * loops will then stop after one pass, which some people
-         * prefer but heavy apps (Gmail, Drive) find stark.
+         * prefer but heavy web apps find stark.
          */
         clampAnimations: false,
 
@@ -179,13 +188,11 @@
         protectCaptchas: true,
 
         /*
-         * Hosts where DNA Shield stays completely out of the way.
-         * Subdomains are matched automatically.
+         * Hosts where DNA Shield stays completely out of the way,
+         * e.g. 'example.com'. Subdomains are matched automatically.
+         * Empty by default: nothing is site-specific.
          */
-        disabledHosts: [
-            // 'meet.google.com',
-            // 'figma.com'
-        ]
+        disabledHosts: []
 
     };
 
@@ -350,13 +357,11 @@
      * CSS ACCELERATOR
      * ==========================================================
      *
-     * Transitions are clamped in CSS (they are one-shot UI feedback
-     * - 0.01 s reads as snappy, and the events still fire). CSS
-     * animations are deliberately left alone: clamping their
-     * duration froze loading spinners and looked broken. Finite CSS
-     * animations are fast-forwarded by the WAAPI finish queue
-     * instead, which is iteration-aware. Everything ships as ONE
-     * universal rule block to keep style-recalc pressure low.
+     * The stylesheet only does what CSS can do without side
+     * effects: zero animation delays and disable smooth scrolling.
+     * Durations are left alone - transitions and finite animations
+     * are finished through the Web Animations API instead, which
+     * only ever touches motion the site actually authored.
      * ========================================================== */
 
     var STYLE_ID = '__DNA_SHIELD__';
@@ -368,65 +373,44 @@
      * Build the acceleration stylesheet from the config.
      *
      * @param {boolean} suspended True to emit only captcha-safe
-     *        rules: while a captcha is on screen its animation and
-     *        transition timing must stay exactly as authored -
-     *        slider puzzles are commonly driven by negative
-     *        animation-delay tricks that the clamps would destroy.
+     *        rules: while a captcha is on screen its animation
+     *        timing must stay exactly as authored - slider puzzles
+     *        are commonly driven by negative animation-delay tricks
+     *        that zeroing would destroy.
      * @returns {string} CSS text.
      */
     function buildCSS(suspended) {
-        var css = '';
-
-        if (CONFIG.instantScroll) {
-            css += 'html{scroll-behavior:auto !important}';
-        }
-
-        if (suspended) {
-            return css;
-        }
-
         var rules = [];
 
-        /*
-         * Durations are only forced for a finite numeric config.
-         * Anything else (null, undefined) means "leave durations to
-         * the site" - never an accidental 0s, which would suppress
-         * transition events and hang framework state machines.
-         */
-        var dur = null;
-        if (
-            typeof CONFIG.durationMs === 'number' &&
-            isFinite(CONFIG.durationMs) &&
-            CONFIG.durationMs >= 0
-        ) {
-            var ms = CONFIG.durationMs;
-            if (ms > 1000) {
-                ms = 1000;
-            }
-            dur = (ms / 1000) + 's';
+        /* Not inherited: every scroll container needs it. */
+        if (CONFIG.instantScroll) {
+            rules.push('scroll-behavior:auto !important');
         }
 
-        if (dur !== null) {
-            rules.push('transition-duration:' + dur + ' !important');
+        if (!suspended) {
+            if (CONFIG.zeroDelays) {
+                rules.push('animation-delay:0s !important');
+            }
+
             if (CONFIG.clampAnimations) {
-                rules.push('animation-duration:' + dur + ' !important');
+                var ms = Number(CONFIG.durationMs);
+                if (!isFinite(ms) || ms <= 0) {
+                    ms = 10;
+                }
+                if (ms > 1000) {
+                    ms = 1000;
+                }
+                rules.push('animation-duration:' + (ms / 1000) + 's !important');
+                if (CONFIG.singleIteration) {
+                    rules.push('animation-iteration-count:1 !important');
+                }
             }
         }
 
-        if (CONFIG.zeroDelays) {
-            rules.push('animation-delay:0s !important');
-            rules.push('transition-delay:0s !important');
+        if (!rules.length) {
+            return '';
         }
-
-        if (CONFIG.clampAnimations && CONFIG.singleIteration) {
-            rules.push('animation-iteration-count:1 !important');
-        }
-
-        if (rules.length) {
-            css += '*,*::before,*::after{' + rules.join(';') + '}';
-        }
-
-        return css;
+        return '*,*::before,*::after{' + rules.join(';') + '}';
     }
 
     /**
@@ -453,12 +437,15 @@
                 document.adoptedStyleSheets
             ) {
                 styleSheet = new CSSStyleSheet();
-                styleSheet.replaceSync(css);
-                var sheets = document.adoptedStyleSheets.slice();
-                sheets.push(styleSheet);
-                document.adoptedStyleSheets = sheets;
             }
             if (styleSheet) {
+                styleSheet.replaceSync(css);
+                /* Re-adopt after a page overwrote adoptedStyleSheets. */
+                if (!isInstalled()) {
+                    var sheets = Array.prototype.slice.call(document.adoptedStyleSheets);
+                    sheets.push(styleSheet);
+                    document.adoptedStyleSheets = sheets;
+                }
                 return;
             }
         } catch (_) {
@@ -645,7 +632,8 @@
             return;
         }
         if (isInterstitialChallenge()) {
-            leaveChallengePage();
+            /* The whole page is the challenge: touch nothing. */
+            stop();
             return;
         }
         if (scanHandle) {
@@ -700,21 +688,6 @@
             }
         } catch (_) {}
         scanHandle = 0;
-    }
-
-    /**
-     * Shut DNA Shield down for the rest of this page's life. Used on
-     * Cloudflare interstitials, where the whole page is the
-     * challenge and nothing may be accelerated or injected.
-     *
-     * @returns {void}
-     */
-    function leaveChallengePage() {
-        ACTIVE = false;
-        stop();
-        try {
-            window.DNAShield.enabled = false;
-        } catch (_) {}
     }
 
     /**
@@ -775,16 +748,19 @@
      * ANIMATION FAST-FORWARD (Web Animations API)
      * ==========================================================
      *
-     * animationstart handlers never call finish() synchronously.
-     * Work is queued and spread across animation frames so page
-     * state machines are never re-entered mid-event.
+     * Event handlers never call finish() synchronously: page
+     * handlers for the same event would be re-entered mid-dispatch.
+     * Work is queued to requestAnimationFrame instead. The browser
+     * dispatches animation events before it runs frame callbacks in
+     * the same rendering update (HTML event loop), so authored
+     * motion normally lands in its final state before it is ever
+     * painted.
      * ========================================================== */
 
     var handled = typeof WeakSet === 'function' ? new WeakSet() : null;
     var queued = typeof WeakSet === 'function' ? new WeakSet() : null;
     var finishQueue = [];
     var finishFrame = 0;
-    var MAX_FINISHES_PER_FRAME = 16;
 
     /**
      * True when the animation object is a CSS animation.
@@ -842,72 +818,73 @@
     }
 
     /**
-     * Finish queued animations, limited per frame to keep the main
-     * thread responsive under animation bursts.
+     * Finish every queued animation in two passes: read all states
+     * first, then call finish() on the survivors. Interleaving reads
+     * and finish() calls would force one style recalculation per
+     * animation - a theme switch transitioning a thousand elements
+     * would thrash; batched, it settles in one frame.
      *
      * @returns {void}
      */
     function flushFinishQueue() {
         finishFrame = 0;
 
+        var batch = finishQueue;
+        finishQueue = [];
+
         if (!ACTIVE) {
-            finishQueue.length = 0;
             return;
         }
 
-        var processed = 0;
-
-        while (finishQueue.length && processed < MAX_FINISHES_PER_FRAME) {
-            var anim = finishQueue.shift();
-
+        var ready = [];
+        for (var i = 0; i < batch.length; i++) {
             try {
                 if (queued) {
-                    queued.delete(anim);
+                    queued.delete(batch[i]);
                 }
-            } catch (_) {}
-
-            try {
                 /* Re-read state: the page may have cancelled/paused it. */
-                if (!anim || anim.playState !== 'running') {
-                    continue;
+                if (isFiniteAndRunning(batch[i])) {
+                    ready.push(batch[i]);
                 }
-
-                var timing = null;
-                if (
-                    anim.effect &&
-                    typeof anim.effect.getComputedTiming === 'function'
-                ) {
-                    timing = anim.effect.getComputedTiming();
-                }
-                if (!timing) {
-                    continue;
-                }
-
-                var endTime = Number(timing.endTime);
-                var activeDuration = Number(timing.activeDuration);
-                var infinite =
-                    timing.iterations === Infinity ||
-                    !isFinite(endTime) ||
-                    !isFinite(activeDuration);
-
-                /* Infinite animations are left to CSS clamping. */
-                if (infinite || endTime <= 0) {
-                    continue;
-                }
-
-                anim.finish();
-                processed++;
             } catch (_) {}
         }
 
-        if (finishQueue.length && typeof requestAnimationFrame === 'function') {
-            finishFrame = requestAnimationFrame(flushFinishQueue);
+        for (var j = 0; j < ready.length; j++) {
+            try {
+                ready[j].finish();
+            } catch (_) {}
         }
     }
 
     /**
-     * Decide what to do with one animation: skip transitions and
-     * infinite ones, queue finite ones.
+     * True for a running animation that ends on its own. Infinite
+     * loops (spinners) are never finished - that would freeze them.
+     *
+     * @param {Animation} anim Candidate animation.
+     * @returns {boolean} True when finishing it is safe.
+     */
+    function isFiniteAndRunning(anim) {
+        if (anim.playState !== 'running') {
+            return false;
+        }
+        var timing = anim.effect &&
+            typeof anim.effect.getComputedTiming === 'function'
+            ? anim.effect.getComputedTiming()
+            : null;
+        if (!timing) {
+            return false;
+        }
+        var endTime = Number(timing.endTime);
+        return timing.iterations !== Infinity &&
+            isFinite(endTime) &&
+            isFinite(Number(timing.activeDuration)) &&
+            endTime > 0;
+    }
+
+    /**
+     * Decide what to do with one animation: queue finite authored
+     * motion (CSS animations, CSS transitions, and - when allowed -
+     * script-created animations), leave everything else alone.
      *
      * @param {Animation} anim Animation to consider.
      * @param {boolean} allowScripted True to also accelerate
@@ -920,102 +897,74 @@
         }
 
         try {
-            var owner = anim.effect && anim.effect.target;
-            if (inCaptcha(owner)) {
+            if (handled && handled.has(anim)) {
                 return;
             }
-        } catch (_) {}
+            if (inCaptcha(anim.effect && anim.effect.target)) {
+                return;
+            }
 
-        try {
-            if (handled) {
-                if (handled.has(anim)) {
+            if (isTransition(anim)) {
+                if (!CONFIG.accelerateTransitions) {
                     return;
                 }
+            } else if (!isCSSAnimation(anim)) {
+                if (!CONFIG.accelerateScriptedAnimations || !allowScripted) {
+                    return;
+                }
+            }
+
+            /* Not marked as handled when skipped here: a paused
+               animation may be played later and deserves a look. */
+            if (!isFiniteAndRunning(anim)) {
+                return;
+            }
+
+            if (handled) {
                 handled.add(anim);
             }
-        } catch (_) {
-            return;
-        }
-
-        try {
-            if (isTransition(anim)) {
-                return;
-            }
-
-            if (!isCSSAnimation(anim) && !CONFIG.accelerateScriptedAnimations) {
-                return;
-            }
-            if (!isCSSAnimation(anim) && !allowScripted) {
-                return;
-            }
-
-            var timing = null;
-            if (
-                anim.effect &&
-                typeof anim.effect.getComputedTiming === 'function'
-            ) {
-                timing = anim.effect.getComputedTiming();
-            }
-            if (!timing) {
-                return;
-            }
-
-            var endTime = Number(timing.endTime);
-            var infinite =
-                timing.iterations === Infinity ||
-                !isFinite(endTime) ||
-                !isFinite(Number(timing.activeDuration));
-
-            if (infinite || endTime <= 0) {
-                return;
-            }
-
-            if (anim.playState !== 'running') {
-                return;
-            }
-
             scheduleFinish(anim);
         } catch (_) {}
     }
 
     /**
-     * Accelerate every animation on one element, optionally only the
-     * one matching a CSS animation name.
+     * Animations of one element, or of one of its pseudo-elements.
+     * Element.getAnimations() alone never includes ::before/::after
+     * motion, so those are picked out of the subtree list.
      *
-     * @param {Element} target Element holding animations.
-     * @param {string} [animationName] Filter by animation name.
-     * @param {boolean} [allowScripted] Include scripted animations.
-     * @returns {void}
+     * @param {Element} target Event target.
+     * @param {string} pseudo Pseudo-element selector or ''.
+     * @returns {Animation[]} Matching animations.
      */
-    function accelerateTarget(target, animationName, allowScripted) {
+    function animationsOf(target, pseudo) {
         if (!target || typeof target.getAnimations !== 'function') {
-            return;
+            return [];
         }
-
-        var list;
         try {
-            list = target.getAnimations();
-        } catch (_) {
-            return;
-        }
-
-        for (var i = 0; i < list.length; i++) {
-            var anim = list[i];
-            try {
+            if (!pseudo) {
+                return target.getAnimations();
+            }
+            var all = target.getAnimations({ subtree: true });
+            var out = [];
+            for (var i = 0; i < all.length; i++) {
+                var effect = all[i].effect;
                 if (
-                    animationName &&
-                    isCSSAnimation(anim) &&
-                    anim.animationName !== animationName
+                    effect &&
+                    effect.target === target &&
+                    effect.pseudoElement === pseudo
                 ) {
-                    continue;
+                    out.push(all[i]);
                 }
-            } catch (_) {}
-            accelerate(anim, allowScripted);
+            }
+            return out;
+        } catch (_) {
+            return [];
         }
     }
 
     /**
-     * animationstart handler: fast-forward the starting CSS animation.
+     * animationstart handler: fast-forward the CSS animation that
+     * just started.
      *
      * @param {AnimationEvent} e Event with target and animationName.
      * @returns {void}
@@ -1024,10 +973,39 @@
         if (!e || !e.target) {
             return;
         }
-        if (inCaptcha(e.target)) {
+        var list = animationsOf(e.target, e.pseudoElement || '');
+        for (var i = 0; i < list.length; i++) {
+            if (
+                isCSSAnimation(list[i]) &&
+                (!e.animationName || list[i].animationName === e.animationName)
+            ) {
+                accelerate(list[i], false);
+            }
+        }
+    }
+
+    /**
+     * transitionrun handler: fast-forward the transition that was
+     * just created. It fires before any transition-delay elapses,
+     * so delays are skipped too, and only elements whose own styles
+     * declare a transition ever produce it.
+     *
+     * @param {TransitionEvent} e Event with target and propertyName.
+     * @returns {void}
+     */
+    function onTransitionRun(e) {
+        if (!e || !e.target || !CONFIG.accelerateTransitions) {
             return;
         }
-        accelerateTarget(e.target, e.animationName || '', false);
+        var list = animationsOf(e.target, e.pseudoElement || '');
+        for (var i = 0; i < list.length; i++) {
+            if (
+                isTransition(list[i]) &&
+                (!e.propertyName || list[i].transitionProperty === e.propertyName)
+            ) {
+                accelerate(list[i], false);
+            }
+        }
     }
 
     /**
@@ -1064,6 +1042,54 @@
      * ========================================================== */
 
     var RULES_ID = '__DNA_SHIELD_RULES__';
+
+    /*
+     * GET links that act instead of just showing a page: fetching
+     * them early would log the visitor out, delete something,
+     * unsubscribe, or change a cart. One list for every engine -
+     * matched case-insensitively in Speculation Rules selectors and
+     * in the manual prefetch path.
+     */
+    var ACTION_WORDS = [
+        'logout', 'log-out', 'log_out', 'signout', 'sign-out', 'sign_out',
+        'logoff', 'log-off', 'log_off', 'delete', 'destroy', 'remove',
+        'unsubscribe', 'add-to-cart', 'add_to_cart', 'addtocart',
+        'cart/add', 'action='
+    ];
+    /* The words hold no regex metacharacters, so they join as-is. */
+    var ACTION_RE = new RegExp(ACTION_WORDS.join('|'), 'i');
+
+    /* Large downloads never belong in a hover prefetch. */
+    var HEAVY_EXTENSIONS = [
+        'zip', 'rar', '7z', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'dmg', 'exe',
+        'msi', 'apk', 'iso', 'img', 'mp4', 'mkv', 'avi', 'mov', 'webm',
+        'mp3', 'flac', 'ogg', 'wav', 'pdf', 'epub'
+    ];
+    var HEAVY_RE = new RegExp('\\.(' + HEAVY_EXTENSIONS.join('|') + ')$', 'i');
+
+    /**
+     * CSS selector for links Speculation Rules must never touch:
+     * downloads, opt-outs, action links and large files.
+     *
+     * @returns {string} Selector list.
+     */
+    function speculationExclusions() {
+        var parts = [
+            '[download]', '[rel~="nofollow" i]', '[rel~="noprefetch" i]'
+        ];
+        for (var i = 0; i < ACTION_WORDS.length; i++) {
+            parts.push('[href*="' + ACTION_WORDS[i] + '" i]');
+        }
+        for (var j = 0; j < HEAVY_EXTENSIONS.length; j++) {
+            var ext = '.' + HEAVY_EXTENSIONS[j];
+            parts.push(
+                '[href$="' + ext + '" i]',
+                '[href*="' + ext + '?" i]',
+                '[href*="' + ext + '#" i]'
+            );
+        }
+        return parts.join(', ');
+    }
     var hinted = typeof Set === 'function' ? new Set() : [];
     var hintCount = 0;
     var pendingTimer = 0;
@@ -1175,7 +1201,7 @@
      * @returns {void}
      */
     function injectSpeculationRules() {
-        if (!ACTIVE || !speculationHandlesNavigation()) {
+        if (!ACTIVE || !speculationHandlesNavigation() || connectionConstrained()) {
             return;
         }
 
@@ -1184,8 +1210,7 @@
                 return;
             }
 
-            var EXCLUDE = '[download], [rel~="nofollow"], [rel~="noprefetch"], ' +
-                '[href*="logout"], [href*="signout"], [href*="logoff"]';
+            var EXCLUDE = speculationExclusions();
 
             var rules = {
                 prefetch: [{
@@ -1306,7 +1331,7 @@
      * @returns {boolean} True when the path looks like heavy media.
      */
     function isHeavyMedia(url) {
-        return /\.(zip|rar|7z|tar|gz|tgz|bz2|xz|dmg|exe|msi|apk|iso|img|mp4|mkv|avi|mov|webm|mp3|flac|ogg|wav|pdf|epub)([?#]|$)/i.test(url.pathname);
+        return HEAVY_RE.test(url.pathname);
     }
 
     /**
@@ -1320,7 +1345,7 @@
             return null;
         }
 
-        var rel = ' ' + String(a.rel || '') + ' ';
+        var rel = ' ' + String(a.rel || '').toLowerCase() + ' ';
         if (rel.indexOf(' nofollow ') !== -1 || rel.indexOf(' noprefetch ') !== -1) {
             return null;
         }
@@ -1336,13 +1361,8 @@
             return null;
         }
 
-        /*
-         * State-changing GET links (logout endpoints) must never be
-         * prefetched or prerendered - fetching them would act.
-         */
-        if (/logout|signout|sign-out|logoff|log-off|log_out/i.test(
-            url.pathname + url.search
-        )) {
+        /* Fetching an action link early would perform the action. */
+        if (ACTION_RE.test(url.pathname + url.search)) {
             return null;
         }
 
@@ -1511,7 +1531,10 @@
 
     /**
      * Scan the DOM after load and preconnect to the most referenced
-     * resource origins so lazy-loaded assets start instantly.
+     * resource origins that have not been contacted yet, so
+     * lazy-loaded assets start instantly. Navigation links are not
+     * resources, and origins that already served a resource have a
+     * live connection - preconnecting to either only wastes sockets.
      *
      * @returns {void}
      */
@@ -1521,8 +1544,18 @@
         }
 
         try {
+            var connected = {};
+            try {
+                var entries = performance.getEntriesByType('resource');
+                for (var e = 0; e < entries.length; e++) {
+                    connected[new URL(entries[e].name).origin] = true;
+                }
+            } catch (_) {}
+
             var nodes = document.querySelectorAll(
-                'a[href], img[src], script[src], link[href]'
+                'img[src], script[src], iframe[src], video[src], ' +
+                'audio[src], source[src], link[rel~="stylesheet"][href], ' +
+                'link[rel~="preload"][href], link[rel~="modulepreload"][href]'
             );
             var counts = {};
             var order = [];
@@ -1547,7 +1580,7 @@
                 if (url.origin === location.origin) {
                     continue;
                 }
-                if (isHinted(url.origin)) {
+                if (isHinted(url.origin) || connected[url.origin]) {
                     continue;
                 }
 
@@ -1648,6 +1681,13 @@
      * @returns {void}
      */
     function stop() {
+        /* Every deferred callback checks ACTIVE, so this also
+           neutralises timers that were already scheduled. */
+        ACTIVE = false;
+        try {
+            window.DNAShield.enabled = false;
+        } catch (_) {}
+
         cancelPending();
         cancelCaptchaScan();
 
@@ -1667,15 +1707,12 @@
             if (styleEl && styleEl.isConnected) {
                 styleEl.parentNode.removeChild(styleEl);
             }
-            if (styleSheet) {
-                var sheets = document.adoptedStyleSheets;
-                if (sheets) {
-                    var idx = sheets.indexOf(styleSheet);
-                    if (idx !== -1) {
-                        sheets.splice(idx, 1);
-                        document.adoptedStyleSheets = sheets;
-                    }
-                }
+            if (styleSheet && isInstalled()) {
+                /* Rebuilt, not spliced: some engines expose a frozen array. */
+                document.adoptedStyleSheets = Array.prototype.filter.call(
+                    document.adoptedStyleSheets,
+                    function (sheet) { return sheet !== styleSheet; }
+                );
             }
         } catch (_) {}
 
@@ -1718,6 +1755,9 @@
         injectSpeculationRules();
 
         listen(document, 'animationstart', onAnimationStart, {
+            capture: true, passive: true
+        });
+        listen(document, 'transitionrun', onTransitionRun, {
             capture: true, passive: true
         });
 
@@ -1768,9 +1808,11 @@
                 e.ctrlKey &&
                 e.altKey &&
                 e.shiftKey &&
+                !e.repeat &&
+                !e.isComposing &&
                 (e.key === 'D' || e.key === 'd')
             ) {
-                setDisabled(ACTIVE);
+                setDisabled(!userDisabled());
             }
         } catch (_) {}
     }, { capture: true, passive: true });
@@ -1779,37 +1821,46 @@
      * PUBLIC API
      * ========================================================== */
 
+    /*
+     * Non-enumerable, so scripts that enumerate window properties
+     * (analytics, bot scoring) do not see an extra global.
+     */
     try {
-        window.DNAShield = {
-            enabled: ACTIVE,
-            mode: 'waapi-finish + transition-clamp + prerender/prefetch',
+        Object.defineProperty(window, 'DNAShield', {
+            configurable: true,
+            enumerable: false,
+            writable: true,
+            value: {
+                enabled: ACTIVE,
+                mode: 'waapi-finish + prerender/prefetch',
 
-            /* What DNA Shield does NOT touch. */
-            patchesNativeAPIs: false,
-            patchesTimers: false,
-            patchesNetwork: false,
-            patchesEvents: false,
-            patchesFrameworks: false,
+                /* What DNA Shield does NOT touch. */
+                patchesNativeAPIs: false,
+                patchesTimers: false,
+                patchesNetwork: false,
+                patchesEvents: false,
+                patchesFrameworks: false,
 
-            config: CONFIG,
+                config: CONFIG,
 
-            /* Fast-forward every finite animation right now. */
-            sweep: sweep,
+                /* Fast-forward every finite animation right now. */
+                sweep: sweep,
 
-            /* Manually prefetch one URL. */
-            prefetch: prefetch,
+                /* Manually prefetch one URL. */
+                prefetch: prefetch,
 
-            /* Tear everything down on this page. */
-            stop: stop,
+                /* Tear everything down on this page. */
+                stop: stop,
 
-            disableHere: function () {
-                setDisabled(true);
-            },
+                disableHere: function () {
+                    setDisabled(true);
+                },
 
-            enableHere: function () {
-                setDisabled(false);
+                enableHere: function () {
+                    setDisabled(false);
+                }
             }
-        };
+        });
     } catch (_) {}
 
 })();
